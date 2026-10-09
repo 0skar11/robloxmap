@@ -20,6 +20,7 @@
 --
 -- Remotes:
 --   GameEvent    server -> client  { Kind = "Fade", Visible, Duration } | { Kind = "Message", Text, Duration }
+--                                  | { Kind = "Jumpscare" }
 --   LobbyAction  client -> server  ("SetPartySize", n) | ("SetLanguage", "ar" | "en") | ("StartNow") | ("LeaveRun")
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")

@@ -19,6 +19,7 @@ local Strings = require(ReplicatedStorage.Shared.Strings)
 local AnomalyContext = require(script.Parent.AnomalyContext)
 local AnomalyRegistry = require(script.Parent.AnomalyRegistry)
 local VoteManager = require(script.Parent.VoteManager)
+local Walker = require(script.Parent.Walker)
 
 local CLOCK_START_SECONDS = 23 * 3600 + 57 * 60
 local DOOR_TWEEN = TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut)
@@ -211,6 +212,9 @@ function GameLoop.run(session)
 		-- The train has stopped: doors open and the players decide.
 		setDoors(refs, true)
 		publishState("Station")
+		local stopWalker = Walker.start(refs, session.GetAlive, function(player)
+			event:FireClient(player, { Kind = "Jumpscare" })
+		end)
 		local choice, byCoinFlip, outcome = VoteManager.collect(refs.Doors, members, session.GetAlive, publishVote, random)
 
 		publishState("Riding")
@@ -218,6 +222,8 @@ function GameLoop.run(session)
 			message(text("CoinFlip", text(if choice == "Continue" then "DoorContinue" else "DoorBack")), 2)
 		end
 		fade(true)
+		-- Back to his spot before the anomaly is undone, so its changes come off cleanly.
+		stopWalker()
 
 		if anomaly then
 			local ok, err = pcall(anomaly.Reset, ctx)
