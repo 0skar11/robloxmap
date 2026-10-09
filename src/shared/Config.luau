@@ -66,11 +66,11 @@ Config.SprintSpeed = 26
 Config.Moods = {
 	Calm = {
 		LightColor = Color3.fromRGB(255, 246, 228),
-		LightBrightness = 1.8,
+		LightBrightness = 1.45,
 	},
 	Horror = {
 		LightColor = Color3.fromRGB(255, 205, 160),
-		LightBrightness = 0.8,
+		LightBrightness = 0.65,
 	},
 }
 

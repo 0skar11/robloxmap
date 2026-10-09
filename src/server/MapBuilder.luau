@@ -391,7 +391,7 @@ local function buildCar(map: Folder, language: string)
 	end
 
 	for _, z in { 14.6, 20.9 } do
-		Build.ceilingLight(car, "LightStrip", Vector3.new(36, 0.15, 0.8), at(0, CAR.RoofBottom - 0.2, z), Color3.fromRGB(240, 245, 255), 1.4, 14)
+		Build.ceilingLight(car, "LightStrip", Vector3.new(36, 0.15, 0.8), at(0, CAR.RoofBottom - 0.2, z), Color3.fromRGB(240, 245, 255), 1.1, 14)
 	end
 
 	-- Where the group stands when the train stops: two rows in the aisle, enough for 10 players.
@@ -500,9 +500,9 @@ local function buildStation(map: Folder, refs, language: string)
 	station.Name = "Station"
 	station.Parent = map
 
-	-- Two-tone pillars down the middle of the platform.
+	-- Two-tone pillars down the middle of the platform, spaced out to keep it open.
 	refs.Pillars = {}
-	for x = -80, 80, 20 do
+	for x = -80, 80, 40 do
 		local pillar = Instance.new("Model")
 		pillar.Name = "Pillar"
 		block(pillar, "Core", Vector3.new(2, 15, 2), at(x, 8.5, 1), COLORS.Pillar, Enum.Material.SmoothPlastic)
