@@ -8,7 +8,10 @@
 --
 -- Walker.start() runs one station's behavior and returns a stop function that puts him back.
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+
+local Config = require(ReplicatedStorage.Shared.Config)
 
 local WALK_ANIMATION = "rbxassetid://507777826"
 local RUN_ANIMATION = "rbxassetid://507767714"
@@ -109,6 +112,15 @@ function Walker.start(refs, getAlive: () -> { Player }, onScare: (Player) -> ())
 		table.clear(tracks)
 	end
 
+	-- Footsteps from where he is, while he walks or runs.
+	local steps = Instance.new("Sound")
+	steps.Name = "WalkerFootsteps"
+	steps.SoundId = Config.Sounds.Footsteps
+	steps.Looped = true
+	steps.Volume = 0.45
+	steps.RollOffMaxDistance = 60
+	steps.Parent = root or model.PrimaryPart or model
+
 	-- Loaded up front so it is ready the moment he sits, and above every other pose.
 	local sitTrack = load(SIT_ANIMATION, Enum.AnimationPriority.Action)
 
@@ -143,6 +155,7 @@ function Walker.start(refs, getAlive: () -> { Player }, onScare: (Player) -> ())
 		end
 		-- Stop walking at once (a fading walk would keep the legs moving), line him up right above
 		-- the seat facing the same way, and only then let the seat take him.
+		steps:Stop()
 		stopTracks(0)
 		root.CFrame = seat.CFrame * CFrame.new(0, humanoid.HipHeight + root.Size.Y / 2 + 0.2, 0)
 		root.AssemblyLinearVelocity = Vector3.zero
@@ -159,6 +172,8 @@ function Walker.start(refs, getAlive: () -> { Player }, onScare: (Player) -> ())
 		if mode == "Chase" then
 			task.wait(math.random() * 2)
 			play(RUN_ANIMATION, 1.2)
+			steps.PlaybackSpeed = 1.6
+			steps:Play()
 			local deadline = os.clock() + CHASE_SECONDS
 			while running and os.clock() < deadline do
 				local dt = RunService.Heartbeat:Wait()
@@ -172,12 +187,15 @@ function Walker.start(refs, getAlive: () -> { Player }, onScare: (Player) -> ())
 				end
 			end
 			-- He is gone after the scare; he'll be back in his spot next station.
+			steps:Stop()
 			stopTracks()
 			setCFrame(home)
 			return
 		end
 
 		play(WALK_ANIMATION, 0.55)
+		steps.PlaybackSpeed = 0.9
+		steps:Play()
 		for _, point in refs.WalkerPath do
 			if not walkTo(point) then
 				return
@@ -192,6 +210,7 @@ function Walker.start(refs, getAlive: () -> { Player }, onScare: (Player) -> ())
 			task.cancel(thread)
 		end
 		stopTracks(0)
+		steps:Destroy()
 		-- Get up from the seat and go back to his spot.
 		local weld = refs.WalkerSeat and refs.WalkerSeat:FindFirstChild("SeatWeld")
 		if weld then

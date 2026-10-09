@@ -348,6 +348,11 @@ local function buildClosedCar(map: Folder, refs, x0: number, x1: number)
 	end
 	carBenches(car, x0, x1, doorXs)
 
+	-- Spots behind its platform-side windows (for the FaceInWindow anomaly), clear of doors and posts.
+	for _, dx in { -16.5, -3.2, 3.2, 16.5 } do
+		table.insert(refs.ClosedCarWindows, at(mid + dx, 7, CAR.OuterNear + CAR.Wall + 0.6))
+	end
+
 	-- Its lights are station lights: on in the bright levels, dead in the dark ones.
 	local light = Build.ceilingLight(car, "Light", Vector3.new(x1 - x0 - 4, 0.2, 0.8), at(mid, CAR.RoofBottom - 0.15, 17.75), COLORS.Light, 1, 12)
 	light:SetAttribute("DiesInHorror", true)
@@ -653,6 +658,7 @@ local function buildStation(map: Folder, refs, language: string)
 	flowers.Parent = station
 
 	local phone = block(station, "Phone", Vector3.new(0.7, 0.06, 1.2), at(34, 1.03, 4) * CFrame.Angles(0, math.rad(25), 0), COLORS.Dark)
+	refs.Phone = phone
 	refs.PhoneLabel = surfaceText(phone, Enum.NormalId.Top, Strings.get(language, "MissedCalls", 12), {
 		Background = Color3.fromRGB(10, 10, 14),
 		TextColor = Color3.fromRGB(230, 230, 235),
@@ -689,6 +695,7 @@ function MapBuilder.build(stationOrigin: CFrame, name: string, language: string,
 		Language = language,
 		Lights = {},
 		Gloomy = {},
+		ClosedCarWindows = {},
 		At = function(x: number, y: number, z: number): CFrame
 			return stationOrigin * CFrame.new(x, y, z)
 		end,

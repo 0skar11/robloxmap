@@ -181,6 +181,18 @@ local messageLabel = text(gui, "Message", {
 	ZIndex = 3,
 })
 
+-- The station announcement, shown like a PA subtitle while it plays.
+local subtitle = text(gui, "Announcement", {
+	AnchorPoint = Vector2.new(0.5, 1),
+	Position = UDim2.new(0.5, 0, 1, -110),
+	Size = UDim2.new(0.6, 0, 0, 30),
+	BackgroundColor3 = Color3.fromRGB(10, 10, 14),
+	BackgroundTransparency = 0.35,
+	TextColor3 = Color3.fromRGB(245, 200, 40),
+	Visible = false,
+	ZIndex = 3,
+})
+
 local blackout = create("Frame", gui, {
 	Name = "Blackout",
 	Size = UDim2.fromScale(1, 1),
@@ -470,6 +482,15 @@ event.OnClientEvent:Connect(function(payload)
 		showMessage(payload.Text, payload.Duration or 3)
 	elseif payload.Kind == "Jumpscare" then
 		task.spawn(jumpscare)
+	elseif payload.Kind == "Announce" then
+		subtitle.Text = payload.Text or ""
+		subtitle.Visible = true
+		local shown = subtitle.Text
+		task.delay(7, function()
+			if subtitle.Text == shown then
+				subtitle.Visible = false
+			end
+		end)
 	end
 end)
 

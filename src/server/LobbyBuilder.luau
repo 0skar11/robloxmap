@@ -143,6 +143,52 @@ local function buildPeople(lobby: Folder)
 	end
 end
 
+-- The fastest-groups board on the east wall. Returns its row labels (filled by Main).
+local function buildLeaderboard(lobby: Folder): { TextLabel }
+	local board = block(lobby, "Leaderboard", Vector3.new(0.4, 15, 22), at(59.75, 9.5, 0), COLORS.Frame)
+	local gui = Instance.new("SurfaceGui")
+	gui.Face = Enum.NormalId.Left
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.PixelsPerStud = 30
+	gui.LightInfluence = 0
+	gui.Parent = board
+
+	local layout = Instance.new("UIListLayout")
+	layout.FillDirection = Enum.FillDirection.Vertical
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Padding = UDim.new(0.01, 0)
+	layout.Parent = gui
+	local padding = Instance.new("UIPadding")
+	padding.PaddingLeft = UDim.new(0.04, 0)
+	padding.PaddingRight = UDim.new(0.04, 0)
+	padding.PaddingTop = UDim.new(0.03, 0)
+	padding.Parent = gui
+
+	local function row(order: number, height: number, color: Color3): TextLabel
+		local label = Instance.new("TextLabel")
+		label.LayoutOrder = order
+		label.Size = UDim2.fromScale(1, height)
+		label.BackgroundTransparency = 1
+		label.Font = Enum.Font.GothamBold
+		label.TextScaled = true
+		label.TextColor3 = color
+		label.TextXAlignment = Enum.TextXAlignment.Left
+		label.Text = ""
+		label.Parent = gui
+		return label
+	end
+
+	local title = row(0, 0.1, COLORS.Yellow)
+	title.Text = "FASTEST GROUPS"
+	title.TextXAlignment = Enum.TextXAlignment.Center
+	local rows = {}
+	for i = 1, Config.LeaderboardSize do
+		table.insert(rows, row(i, 0.075, Color3.fromRGB(225, 225, 225)))
+	end
+	rows[1].Text = "No one has made it out yet..."
+	return rows
+end
+
 -- Builds the lobby into Workspace.Lobby. Returns the gates and the spawn point.
 function LobbyBuilder.build()
 	LobbyBuilder.clearDefaultPlace()
@@ -157,6 +203,7 @@ function LobbyBuilder.build()
 
 	local spawn = buildHall(lobby)
 	buildPeople(lobby)
+	local leaderboardRows = buildLeaderboard(lobby)
 	local gates = {}
 	local first = -(Config.LobbyPads - 1) * GATE_SPACING / 2
 	for i = 1, Config.LobbyPads do
@@ -169,6 +216,7 @@ function LobbyBuilder.build()
 		Spawn = spawn,
 		SpawnCFrame = spawn.CFrame * CFrame.new(0, 3.5, 0),
 		Gates = gates,
+		LeaderboardRows = leaderboardRows,
 	}
 end
 

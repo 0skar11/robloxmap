@@ -18,6 +18,7 @@ local Net = require(ReplicatedStorage.Shared.Net)
 local Strings = require(ReplicatedStorage.Shared.Strings)
 local AnomalyContext = require(script.Parent.AnomalyContext)
 local AnomalyRegistry = require(script.Parent.AnomalyRegistry)
+local Records = require(script.Parent.Records)
 local VoteManager = require(script.Parent.VoteManager)
 local Walker = require(script.Parent.Walker)
 
@@ -174,6 +175,16 @@ function GameLoop.run(session)
 		return pool[random:NextInteger(1, #pool)]
 	end
 
+	local function sound(name: string)
+		fire({ Kind = "Sound", Name = name })
+	end
+
+	local function reportLevel()
+		for _, player in members() do
+			Records.reportLevel(player, level)
+		end
+	end
+
 	runClock(refs, function()
 		return stationStartedAt
 	end)
@@ -184,6 +195,9 @@ function GameLoop.run(session)
 	fade(true)
 	-- Give random-avatar passengers a moment to load in the dark.
 	task.wait(Config.BlackoutSeconds)
+
+	local runStartedAt = os.clock()
+	local firstStation = true
 
 	while #members() > 0 do
 		-- Set up the next station while the screen is dark.
@@ -213,10 +227,24 @@ function GameLoop.run(session)
 		boardTrain()
 		stationStartedAt = os.clock()
 		publishState("Riding")
+		reportLevel()
+		sound("TrainArrive")
+		if firstStation then
+			-- The very first stop: everyone wakes up in their seat.
+			fire({ Kind = "WakeUp" })
+			firstStation = false
+		end
+		-- "Moment of doubt": an anomaly only one player sees, there the moment the screen clears.
+		local private = refs.Private
+		if private and private.Player.Parent then
+			event:FireClient(private.Player, { Kind = "Private", Effect = private.Effect, Map = refs.Map, Language = language })
+		end
 		fade(false)
 
 		-- The train has stopped: doors open and the players decide.
 		setDoors(refs, true)
+		sound("DoorOpen")
+		fire({ Kind = "Announce", Mood = mood, Text = text(if mood == "Horror" then "AnnounceHorror" else "AnnounceCalm") })
 		publishState("Station")
 		local stopWalker = Walker.start(refs, session.GetAlive, function(player)
 			event:FireClient(player, { Kind = "Jumpscare" })
@@ -224,10 +252,14 @@ function GameLoop.run(session)
 		local choice, byCoinFlip, outcome = VoteManager.collect(refs.Doors, members, session.GetAlive, publishVote, random)
 
 		publishState("Riding")
+		sound("DoorClose")
 		if byCoinFlip then
 			message(text("CoinFlip", text(if choice == "Continue" then "DoorContinue" else "DoorBack")), 2)
 		end
 		fade(true)
+		if private and private.Player.Parent then
+			event:FireClient(private.Player, { Kind = "PrivateEnd" })
+		end
 		-- Back to his spot before the anomaly is undone, so its changes come off cleanly.
 		stopWalker()
 
@@ -256,12 +288,21 @@ function GameLoop.run(session)
 			end
 			level += 1
 			if level > Config.TotalLevels then
+				-- Finished: it counts as a best of "TotalLevels + 1", and the time goes on the board.
+				reportLevel()
+				Records.submitRun(members(), os.clock() - runStartedAt)
+				if session.OnRunFinished then
+					session.OnRunFinished()
+				end
 				message(text("Ending"), 4)
 				task.wait(4)
 				return
 			end
 			if level == Config.HorrorStartsAtLevel then
-				task.delay(2, message, text("HorrorBegins"), 3)
+				-- The crash: the animator's video if there is one, otherwise shake, flash and the news.
+				fire({ Kind = "Crash", News = text("CrashNews") })
+				task.wait(Config.Cutscenes.CrashSeconds)
+				message(text("HorrorBegins"), 3)
 			end
 		else
 			level = checkpoint + 1

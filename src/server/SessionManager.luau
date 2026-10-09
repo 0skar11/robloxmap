@@ -37,6 +37,9 @@ local GAME_ATTRIBUTES = {
 
 local SessionManager = {}
 
+-- Optional hook (set by Main on lobby servers): called when a group finishes the game.
+SessionManager.onRunFinished = nil :: (() -> ())?
+
 local lobby = nil -- lobby refs; nil on a game server
 local live = false -- true when groups are teleported to their own servers
 local sessionOf: { [Player]: any } = {}
@@ -137,6 +140,13 @@ local function newSession(slot: number, language: string, withSpawn: boolean)
 		Members = {} :: { Player },
 		Refs = nil :: any,
 	}
+	-- Main sets this so a finished run refreshes the lobby leaderboard right away.
+	function session.OnRunFinished()
+		if SessionManager.onRunFinished then
+			SessionManager.onRunFinished()
+		end
+	end
+
 	local stationOrigin = CFrame.new(slot * Config.StationSpacing, 50, 0)
 	session.Refs = MapBuilder.build(stationOrigin, "Station" .. slot, session.Language, withSpawn)
 

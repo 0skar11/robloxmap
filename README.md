@@ -23,6 +23,12 @@
   - **القطر من بره:** فضي، وسقفه مدوّر، وأبوابه دبل بشبابيك صغيرة، وشبابيك على طول جنبه.
   - **القطر من جوه:** كنب أزرق على الجنبين بمساند، وصفوف مقابض، وإعلانات، وباب في كل آخر. والممر واسع.
   - **المحطة:** بلاط فاتح، وشريط أصفر على الحرف، وكمرات في السقف بينها لوحات نور، وأعمدة بلونين، وكراسي معدن، وأنوار برتقاني في النفق.
+- **حفظ التقدم:** أعلى Level وصلتله بيتحفظ، وبيظهر فوق اسمك **في اللوبي بس**.
+- **Leaderboard** في اللوبي (على الحيطة اليمين) لأسرع 10 مجموعات خلصت اللعبة.
+- **الأصوات:** همهمة المحطة، وموسيقى رعب في الضلمة، وصوت القطر والأبواب، وصرخة الـ jumpscare، وخطوات الراجل اللي بيمشي.
+- **إعلان المحطة** بصوت حقيقي بالعربي (بالتشكيل) والإنجليزي، ونسخة مرعبة في الضلمة. الكلام بيظهر على الشاشة كمان.
+- **"لحظة الشك":** anomaly بيظهر للاعب واحد بس، والباقيين مش شايفينه.
+- **الصحيان في الأول، والحادثة عند Level 6:** فيه بدائل معمولة في الكود لحد ما الأنيميتور يسلّم (شوف [`animator/README.md`](animator/README.md)).
 - **الركاب ثابتين:** 6 أشكال اتختاروا عشوائي مرة واحدة واتحفظوا، فبيبقوا نفس الناس في كل لعبة وفي اللوبي. **والسواق لابس سكن DRG1YOUSSIF.**
 
 ## تجربها إزاي
@@ -58,6 +64,8 @@
 | `MissingPillar` | عمود مش موجود |
 | `TurnedBench` | كرسي فاضي متلف ناحية الحيطة |
 | `MissingDriver` | مفيش سواق في الكابينة |
+| `UpsideDownSign` | اسم المحطة مكتوب بالمقلوب |
+| `OnlyOneSees` | **لحظة الشك:** لاعب واحد بس بيشوف حاجة غلط (شخص أسود قدام الباب، أو اسمه على اللافتة، أو كلام بالأحمر على الحيطة، أو الساعة 00:00:00). لازم يقنع الباقيين |
 
 **مرعبة (من Level 6):**
 
@@ -71,6 +79,9 @@
 | `ExtraMissedCall` | الموبايل بقى فيه 13 مكالمة فايتة بدل 12 |
 | `BloodyWalker` | الراجل اللي في النص شكله مرعب: باهت، وغرقان دم، وعينيه حمرا |
 | `WalkerJumpscare` | نفس الشكل المرعب، وبيجري عليك ويعملك jumpscare (مش بتموت) |
+| `PhoneRinging` | الموبايل اللي على الأرض بيرن: «مكالمة واردة - ماما» |
+| `DriverStaring` | السواق لافف راسه لورا وباصص عليكم |
+| `FaceInWindow` | وش باهت لازق في شباك عربية من العربيات المقفولة |
 
 ## إضافة anomaly جديد
 
@@ -109,7 +120,31 @@ return {
 - **السيرفرات:** `UseSeparateServers`.
 - **الحركة:** `WalkSpeed` و `SprintSpeed`.
 - **الركاب:** `AvatarNpcs` (لو false، الركاب بالشكل البسيط). أشكالهم ثابتة في `src/server/NpcOutfits.luau`.
-- **التجربة:** `Debug = true` بيكتب في Output اسم الـ anomaly اللي في كل محطة.
+- **التجربة:** `Debug = true` بيكتب في Output اسم الـ anomaly اللي في كل محطة، و `StartLevel = 6` بيبدأ اللعبة من الضلمة على طول.
+- **الأصوات:** `Sounds` (كل صوت ليه رقم، وتقدر تبدله).
+- **المشاهد:** `Cutscenes` (أرقام الأنيميشن والفيديو من الأنيميتور).
+
+## إعلانات المحطة (الصوت)
+
+ملفات الصوت جاهزة في [`assets/audio/`](assets/audio):
+
+| الملف | فين |
+|---|---|
+| `announce_calm_ar.mp3` | `Config.Sounds.Announcements.Calm.ar` |
+| `announce_calm_en.mp3` | `Config.Sounds.Announcements.Calm.en` |
+| `announce_horror_ar.mp3` | `Config.Sounds.Announcements.Horror.ar` |
+| `announce_horror_en.mp3` | `Config.Sounds.Announcements.Horror.en` |
+
+**عشان تشتغل في اللعبة:**
+1. ارفع الـ 4 ملفات على روبلوكس: [Creator Hub](https://create.roblox.com/dashboard/creations) ← **Development Items ← Audio ← Import**.
+2. انسخ رقم كل صوت.
+3. حطه في `Config.luau`، مثلًا: `ar = "rbxassetid://123456789"`.
+
+لحد ما تعمل كده، الإعلان بيشتغل كـ chime وكلام على الشاشة.
+
+## حفظ التقدم في Studio
+
+عشان الحفظ والـ Leaderboard يشتغلوا وانت بتجرب في Studio: **Game Settings ← Security ← Enable Studio Access to API Services**، وده محتاج تكون عملت Publish الأول. من غيرها اللعبة بتحفظ في الذاكرة بس للتجربة دي.
 
 ## للمطورين (Rojo)
 
@@ -125,13 +160,18 @@ src/
            LobbyBuilder, LobbyManager    اللوبي والبوابات
            SessionManager                المجموعات، والنقل بين السيرفرات، والموت
            GameLoop, VoteManager         الـ Levels والتصويت
+           Walker, Gore, Stare           الراجل اللي بيمشي، والشكل المرعب، واللف بالراس
+           Records                       حفظ التقدم والـ Leaderboard
            MapBuilder, Build, Npc, Mannequin, Graphics
            AnomalyContext, AnomalyRegistry, Anomalies/*
-  client/  HUD, Mood (الإضاءة), Sprint, Camera (والمشاهدة بعد الموت)   → StarterPlayerScripts.Client
+  client/  HUD, Mood (الإضاءة), Sprint, Camera (والمشاهدة بعد الموت),
+           Audio, Private (لحظة الشك), Cutscene               → StarterPlayerScripts.Client
+animator/  ملف الأنيميتور، والقطر والمحطة كـ .rbxmx و .obj
+assets/    ملفات الصوت
 ```
 
 ## اللي لسه
 
-- **الأصوات:** إعلان المحطة، وأصوات رعب، وjumpscares.
+- **فيديو الحادثة وأنيميشن الصحيان:** عند الأنيميتور.
 - **مشهد النهاية:** باب النور، والحيطة التذكارية بأسماء اللاعبين.
 - **المحتوى:** anomalies أكتر (لحد 30)، وBadges، وThumbnail.
