@@ -1,6 +1,6 @@
--- Passengers. Each one appears straight away as a block mannequin, then (if
--- Config.RandomAvatarNpcs is on) swaps to the avatar of a random real Roblox user once it loads.
--- If no avatar loads, the mannequin stays.
+-- NPCs. Each one appears straight away as a block mannequin, then (if Config.AvatarNpcs is on)
+-- swaps to its fixed outfit from NpcOutfits once the avatar loads, so the same people show up in
+-- every game and in the lobby. If the avatar does not load, the mannequin stays.
 --
 -- The returned Model is the passenger for good: anomalies can hide it or look inside it for
 -- "Head", whichever body it ends up with.
@@ -14,23 +14,37 @@ local Mannequin = require(script.Parent.Mannequin)
 
 -- Roblox's default R15 sit animation.
 local SIT_ANIMATION = "rbxassetid://2506281703"
-local MAX_USER_ID = 3_000_000_000
-local ATTEMPTS = 8
 
-local random = Random.new()
+local COLOR_FIELDS = { "HeadColor", "TorsoColor", "LeftArmColor", "RightArmColor", "LeftLegColor", "RightLegColor" }
 
 local Npc = {}
 
-local function randomDescription(): HumanoidDescription?
-	for _ = 1, ATTEMPTS do
-		local ok, description = pcall(function()
-			return Players:GetHumanoidDescriptionFromUserId(random:NextInteger(1, MAX_USER_ID))
+-- A HumanoidDescription for an outfit from NpcOutfits. An outfit with LiveUserId wears that
+-- account's current avatar, and falls back to the saved fields if it cannot be loaded.
+local function describe(outfit): HumanoidDescription?
+	if outfit.LiveUserId then
+		local ok, live = pcall(function()
+			return Players:GetHumanoidDescriptionFromUserId(outfit.LiveUserId)
 		end)
-		if ok and description then
-			return description
+		if ok and live then
+			return live
 		end
 	end
-	return nil
+
+	-- Each field on its own, so one missing item does not cost the whole outfit.
+	local description = Instance.new("HumanoidDescription")
+	for key, value in outfit do
+		if key == "LiveUserId" then
+			continue
+		end
+		local ok, err = pcall(function()
+			(description :: any)[key] = if table.find(COLOR_FIELDS, key) then Color3.fromHex(value) else value
+		end)
+		if not ok then
+			warn("[EndlessSubway] outfit field", key, "failed:", err)
+		end
+	end
+	return description
 end
 
 local function waitUntilInWorld(model: Model): boolean
@@ -44,8 +58,8 @@ local function waitUntilInWorld(model: Model): boolean
 	return true
 end
 
-local function loadAvatar(container: Model, pose: "Stand" | "Sit", pivot: CFrame)
-	local description = randomDescription()
+local function loadAvatar(container: Model, pose: "Stand" | "Sit", pivot: CFrame, outfit)
+	local description = describe(outfit)
 	if not description then
 		return
 	end
@@ -114,11 +128,11 @@ local function loadAvatar(container: Model, pose: "Stand" | "Sit", pivot: CFrame
 end
 
 -- pose: "Stand" (pivot 2 studs above the floor) or "Sit" (pivot on the seat surface),
--- facing the pivot's LookVector.
-function Npc.create(name: string, pose: "Stand" | "Sit", pivot: CFrame, clothes: Color3): Model
+-- facing the pivot's LookVector. outfit: an entry of NpcOutfits (nil keeps the mannequin).
+function Npc.create(name: string, pose: "Stand" | "Sit", pivot: CFrame, clothes: Color3, outfit: any?): Model
 	local container = Mannequin.create(name, pose, pivot, clothes)
-	if Config.RandomAvatarNpcs then
-		task.spawn(loadAvatar, container, pose, pivot)
+	if Config.AvatarNpcs and outfit then
+		task.spawn(loadAvatar, container, pose, pivot, outfit)
 	end
 	return container
 end
