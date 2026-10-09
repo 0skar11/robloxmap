@@ -29,6 +29,22 @@ local TEXT: { [string]: { [string]: any } } = {
 
 		-- HUD
 		Rule = "Normal station -> CONTINUE.  Something wrong -> GO BACK.",
+		RuleFirst = "The first station is always safe. Look around, then go to CONTINUE.",
+		TutorialTitle = "How to play",
+		TutorialBody = table.concat({
+			"The train keeps stopping at the same station.",
+			"Look at everything: the clock, the signs, the passengers, the benches...",
+			"If you find something different (a stopped clock, a missing passenger, a wrong number), there is a problem: go to GO BACK.",
+			"If everything is normal: go to CONTINUE.",
+			"This first station is always safe. Remember how it looks.",
+		}, "\n\n"),
+		TutorialHorrorTitle = "Careful...",
+		TutorialHorrorBody = table.concat({
+			"From here the station gets dark, and stranger things happen.",
+			"If a dark figure walks toward you, run (hold Shift, or tap Sprint). If it touches you, you die and watch your friends.",
+			"If the whole group dies, everyone goes back to Level 1.",
+		}, "\n\n"),
+		TutorialOk = "Got it",
 		PhaseCalm = "The Last Train",
 		PhaseHorror = "Something Is Wrong",
 		HudLevel = "Level %d / %d",
@@ -76,6 +92,22 @@ local TEXT: { [string]: { [string]: any } } = {
 		Months = { "يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر" },
 
 		Rule = "المحطة طبيعية ← كمّل.  فيها حاجة غلط ← ارجع.",
+		RuleFirst = "أول محطة دايمًا أمان. بص حواليك، وبعدين روح لباب كمّل.",
+		TutorialTitle = "إزاي تلعب",
+		TutorialBody = table.concat({
+			"القطر بيفضل يقف في نفس المحطة كل مرة.",
+			"بص على كل حاجة: الساعة، واللافتات، والركاب، والكراسي...",
+			"لو لقيت حاجة مختلفة (ساعة واقفة، راكب ناقص، رقم غلط) يبقى فيه مشكلة: روح لباب ارجع.",
+			"لو كل حاجة طبيعية: روح لباب كمّل.",
+			"أول محطة دي دايمًا أمان. احفظ شكلها.",
+		}, "\n\n"),
+		TutorialHorrorTitle = "خلي بالك...",
+		TutorialHorrorBody = table.concat({
+			"من هنا المحطة بتضلم، وبتحصل حاجات أغرب.",
+			"لو شخص أسود مشي ناحيتك، اجري (دوس Shift، أو زرار جري). لو لمسك هتموت وتتفرج على صحابك.",
+			"لو المجموعة كلها ماتت، كلكم بترجعوا لـ Level 1.",
+		}, "\n\n"),
+		TutorialOk = "فهمت",
 		PhaseCalm = "آخر قطر",
 		PhaseHorror = "فيه حاجة غلط",
 		HudLevel = "Level %d / %d",

@@ -47,6 +47,10 @@ Config.HorrorStartsAtLevel = 6
 -- (once in the bright station, once in the dark one).
 Config.AlwaysNormalLevels = { 1, 6 }
 
+-- The GO BACK door only exists from this level on. Level 1 is always safe, so there is
+-- nothing to go back from.
+Config.BackDoorFromLevel = 2
+
 -- Chance that any other level carries an anomaly.
 Config.AnomalyChance = 0.6
 
@@ -118,6 +122,7 @@ return Config
 --   Mood             "Lobby" | "Calm" (levels 1-5, bright) | "Horror" (dark) - drives the local look
 --   Language         "ar" | "en" for the player's session ("en" in the lobby)
 --   Level, TotalLevels, Checkpoint (0 = none yet)
+--   BackDoor         false while the GO BACK door does not exist yet (level 1)
 --   Dead             true while spectating after dying mid-game
 --   SessionKey       same value for everyone in one group (spectators find teammates by it)
 --   VotesContinue, VotesBack, Voters
@@ -207,6 +212,22 @@ local TEXT: { [string]: { [string]: any } } = {
 
 		-- HUD
 		Rule = "Normal station -> CONTINUE.  Something wrong -> GO BACK.",
+		RuleFirst = "The first station is always safe. Look around, then go to CONTINUE.",
+		TutorialTitle = "How to play",
+		TutorialBody = table.concat({
+			"The train keeps stopping at the same station.",
+			"Look at everything: the clock, the signs, the passengers, the benches...",
+			"If you find something different (a stopped clock, a missing passenger, a wrong number), there is a problem: go to GO BACK.",
+			"If everything is normal: go to CONTINUE.",
+			"This first station is always safe. Remember how it looks.",
+		}, "\n\n"),
+		TutorialHorrorTitle = "Careful...",
+		TutorialHorrorBody = table.concat({
+			"From here the station gets dark, and stranger things happen.",
+			"If a dark figure walks toward you, run (hold Shift, or tap Sprint). If it touches you, you die and watch your friends.",
+			"If the whole group dies, everyone goes back to Level 1.",
+		}, "\n\n"),
+		TutorialOk = "Got it",
 		PhaseCalm = "The Last Train",
 		PhaseHorror = "Something Is Wrong",
 		HudLevel = "Level %d / %d",
@@ -254,6 +275,22 @@ local TEXT: { [string]: { [string]: any } } = {
 		Months = { "يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر" },
 
 		Rule = "المحطة طبيعية ← كمّل.  فيها حاجة غلط ← ارجع.",
+		RuleFirst = "أول محطة دايمًا أمان. بص حواليك، وبعدين روح لباب كمّل.",
+		TutorialTitle = "إزاي تلعب",
+		TutorialBody = table.concat({
+			"القطر بيفضل يقف في نفس المحطة كل مرة.",
+			"بص على كل حاجة: الساعة، واللافتات، والركاب، والكراسي...",
+			"لو لقيت حاجة مختلفة (ساعة واقفة، راكب ناقص، رقم غلط) يبقى فيه مشكلة: روح لباب ارجع.",
+			"لو كل حاجة طبيعية: روح لباب كمّل.",
+			"أول محطة دي دايمًا أمان. احفظ شكلها.",
+		}, "\n\n"),
+		TutorialHorrorTitle = "خلي بالك...",
+		TutorialHorrorBody = table.concat({
+			"من هنا المحطة بتضلم، وبتحصل حاجات أغرب.",
+			"لو شخص أسود مشي ناحيتك، اجري (دوس Shift، أو زرار جري). لو لمسك هتموت وتتفرج على صحابك.",
+			"لو المجموعة كلها ماتت، كلكم بترجعوا لـ Level 1.",
+		}, "\n\n"),
+		TutorialOk = "فهمت",
 		PhaseCalm = "آخر قطر",
 		PhaseHorror = "فيه حاجة غلط",
 		HudLevel = "Level %d / %d",
@@ -419,24 +456,12 @@ return {
         </Item>
         <Item class="ModuleScript" referent="12">
           <Properties>
-            <string name="Name">MissingPassenger</string>
-            <string name="Source"><![CDATA[-- One of the passengers is gone. They are made invisible rather than removed, so a seated
--- avatar keeps its pose when it comes back.
+            <string name="Name">MissingDriver</string>
+            <string name="Source"><![CDATA[-- The train is standing at the platform, but nobody is in the driver's seat.
 return {
-	Name = "MissingPassenger",
+	Name = "MissingDriver",
 	Apply = function(ctx)
-		local passenger = ctx:Pick(ctx.Refs.Passengers)
-		for _, descendant in passenger:GetDescendants() do
-			if descendant:IsA("BasePart") then
-				ctx:Set(descendant, "Transparency", 1)
-				ctx:Set(descendant, "CanCollide", false)
-				ctx:Set(descendant, "CastShadow", false)
-			elseif descendant:IsA("Decal") then
-				ctx:Set(descendant, "Transparency", 1)
-			elseif descendant:IsA("SurfaceGui") then
-				ctx:Set(descendant, "Enabled", false)
-			end
-		end
+		ctx:Hide(ctx.Refs.Driver)
 	end,
 	Reset = function(ctx)
 		ctx:Restore()
@@ -446,6 +471,22 @@ return {
           </Properties>
         </Item>
         <Item class="ModuleScript" referent="13">
+          <Properties>
+            <string name="Name">MissingPassenger</string>
+            <string name="Source"><![CDATA[-- One of the passengers is gone.
+return {
+	Name = "MissingPassenger",
+	Apply = function(ctx)
+		ctx:Hide(ctx:Pick(ctx.Refs.Passengers))
+	end,
+	Reset = function(ctx)
+		ctx:Restore()
+	end,
+}
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="14">
           <Properties>
             <string name="Name">MissingPillar</string>
             <string name="Source"><![CDATA[-- One of the pillars is missing. The middle one stays: the flowers lean on it.
@@ -467,7 +508,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="14">
+        <Item class="ModuleScript" referent="15">
           <Properties>
             <string name="Name">NamedPoster</string>
             <string name="Source"><![CDATA[-- An advertisement now carries one of the players' names.
@@ -486,7 +527,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="15">
+        <Item class="ModuleScript" referent="16">
           <Properties>
             <string name="Name">StaringPassengers</string>
             <string name="Source"><![CDATA[-- Every passenger slowly turns their head to follow the nearest player.
@@ -554,7 +595,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="16">
+        <Item class="ModuleScript" referent="17">
           <Properties>
             <string name="Name">StoppedClock</string>
             <string name="Source"><![CDATA[-- The station clock is stuck on the time the train arrives and never ticks.
@@ -571,7 +612,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="17">
+        <Item class="ModuleScript" referent="18">
           <Properties>
             <string name="Name">TheFollower</string>
             <string name="Source"><![CDATA[-- A faceless figure steps out at the far end of the platform and slowly walks toward the nearest
@@ -656,7 +697,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="18">
+        <Item class="ModuleScript" referent="19">
           <Properties>
             <string name="Name">TurnedBench</string>
             <string name="Source"><![CDATA[-- The empty bench has been turned to face the wall.
@@ -679,7 +720,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="19">
+        <Item class="ModuleScript" referent="20">
           <Properties>
             <string name="Name">WrongLineNumber</string>
             <string name="Source"><![CDATA[-- The line badge reads 41 instead of 14.
@@ -696,7 +737,7 @@ return {
           </Properties>
         </Item>
       </Item>
-      <Item class="ModuleScript" referent="20">
+      <Item class="ModuleScript" referent="21">
         <Properties>
           <string name="Name">AnomalyContext</string>
           <string name="Source"><![CDATA[-- Handed to an anomaly's Apply and Reset. Every change made through it is recorded, so
@@ -709,6 +750,7 @@ return {
 --   ctx:Set(instance, property, value)       change a property (Parent = nil hides something)
 --   ctx:SetAttribute(instance, name, value)  change an attribute
 --   ctx:Pivot(model, cframe)                 move a model
+--   ctx:Hide(instance)                       make something invisible and walk-through
 --   ctx:Add(instance, parent?)               add something new; destroyed on restore
 --   ctx:Connect(signal, callback)            disconnected on restore
 --   ctx:Spawn(callback)                      a thread that is cancelled on restore
@@ -766,6 +808,21 @@ function AnomalyContext.Pivot(self: Context, model: PVInstance, cframe: CFrame)
 	model:PivotTo(cframe)
 end
 
+-- Hides a model without removing it, so a seated avatar keeps its pose when it comes back.
+function AnomalyContext.Hide(self: Context, instance: Instance)
+	for _, descendant in instance:GetDescendants() do
+		if descendant:IsA("BasePart") then
+			self:Set(descendant, "Transparency", 1)
+			self:Set(descendant, "CanCollide", false)
+			self:Set(descendant, "CastShadow", false)
+		elseif descendant:IsA("Decal") then
+			self:Set(descendant, "Transparency", 1)
+		elseif descendant:IsA("SurfaceGui") or descendant:IsA("Light") then
+			self:Set(descendant, "Enabled", false)
+		end
+	end
+end
+
 function AnomalyContext.Add(self: Context, instance: Instance, parent: Instance?): Instance
 	table.insert(self._undo, function()
 		instance:Destroy()
@@ -815,7 +872,7 @@ return AnomalyContext
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="21">
+      <Item class="ModuleScript" referent="22">
         <Properties>
           <string name="Name">AnomalyRegistry</string>
           <string name="Source"><![CDATA[-- Loads every ModuleScript in the Anomalies folder. To add an anomaly, drop a new module there:
@@ -866,7 +923,7 @@ return AnomalyRegistry
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="22">
+      <Item class="ModuleScript" referent="23">
         <Properties>
           <string name="Name">Build</string>
           <string name="Source"><![CDATA[-- Small helpers for building maps out of plain anchored parts.
@@ -954,7 +1011,7 @@ return Build
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="23">
+      <Item class="ModuleScript" referent="24">
         <Properties>
           <string name="Name">GameLoop</string>
           <string name="Source"><![CDATA[-- One group's game: the train stops, the players look around, they vote on a door, the screen goes
@@ -1014,6 +1071,11 @@ local function applyMood(refs, mood: "Calm" | "Horror")
 	end
 end
 
+-- Removes the GO BACK door (sign, frame and vote zone) on levels where it does not exist yet.
+local function setBackDoor(refs, available: boolean)
+	refs.Doors.Back.Model.Parent = if available then refs.Map else nil
+end
+
 -- Ticks the station clock from 23:57:00 every time the train stops, unless an anomaly froze it.
 local function runClock(refs, stationStartedAt: () -> number)
 	task.spawn(function()
@@ -1060,6 +1122,7 @@ function GameLoop.run(session)
 		setAll("Level", level)
 		setAll("TotalLevels", Config.TotalLevels)
 		setAll("Checkpoint", checkpoint)
+		setAll("BackDoor", level >= Config.BackDoorFromLevel)
 		refs.CounterLabel.Text = text("Counter", level, Config.TotalLevels)
 	end
 
@@ -1149,6 +1212,7 @@ function GameLoop.run(session)
 			print("[EndlessSubway] session", session.Slot, "level", level, "anomaly:", anomaly and anomaly.Name or "none")
 		end
 
+		setBackDoor(refs, level >= Config.BackDoorFromLevel)
 		setDoors(refs, false)
 		boardTrain()
 		stationStartedAt = os.clock()
@@ -1212,7 +1276,7 @@ return GameLoop
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="24">
+      <Item class="ModuleScript" referent="25">
         <Properties>
           <string name="Name">Graphics</string>
           <string name="Source"><![CDATA[-- Creates the lighting effects every client uses. Each client then tweens Lighting and these
@@ -1259,7 +1323,7 @@ return Graphics
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="25">
+      <Item class="ModuleScript" referent="26">
         <Properties>
           <string name="Name">LobbyBuilder</string>
           <string name="Source"><![CDATA[-- The lobby: a bright ticket hall with a row of gates. Groups gather on a gate, and when it leaves
@@ -1338,9 +1402,8 @@ local function buildHall(lobby: Folder)
 	spawn.Anchored = true
 	spawn.Neutral = true
 	spawn.Duration = 0
-	spawn.Color = COLORS.Yellow
-	spawn.Material = Enum.Material.Neon
-	spawn.Transparency = 0.6
+	-- Invisible: nothing on the floor between the player and the gates.
+	spawn.Transparency = 1
 	spawn.CanCollide = false
 	spawn.Parent = lobby
 	return spawn
@@ -1404,7 +1467,7 @@ return LobbyBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="26">
+      <Item class="ModuleScript" referent="27">
         <Properties>
           <string name="Name">LobbyManager</string>
           <string name="Source"><![CDATA[-- Lobby gates. Standing on a gate joins its group; stepping off leaves it. The first player on a
@@ -1595,7 +1658,7 @@ return LobbyManager
 ]]></string>
         </Properties>
       </Item>
-      <Item class="Script" referent="27">
+      <Item class="Script" referent="28">
         <Properties>
           <string name="Name">Main</string>
           <token name="RunContext">0</token>
@@ -1628,7 +1691,7 @@ end
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="28">
+      <Item class="ModuleScript" referent="29">
         <Properties>
           <string name="Name">Mannequin</string>
           <string name="Source"><![CDATA[-- Faceless block passengers built from anchored parts, so the map needs no uploaded assets.
@@ -1714,7 +1777,7 @@ return Mannequin
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="29">
+      <Item class="ModuleScript" referent="30">
         <Properties>
           <string name="Name">MapBuilder</string>
           <string name="Source"><![CDATA[-- Builds one station in code: an enterable metro car between two closed ones, a long dark
@@ -1725,8 +1788,9 @@ return Mannequin
 --   Platform floor      X -100..100, Z -10..10, top at Y 1
 --   Train car (open)    X -20..20,   Z 10..24 (wide), doors on the platform side (Z 11)
 --   Closed cars         X -62..-22 and 22..62
+--   Driver's cab       X 64..84, the front of the train (it heads toward +X)
 --   CONTINUE door       +X end of the platform
---   GO BACK door        -X end of the platform
+--   GO BACK door        -X end of the platform (missing on level 1)
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
@@ -1819,7 +1883,8 @@ local function buildExitDoor(map: Folder, kind: "Continue" | "Back", language: s
 	model.Name = kind .. "Door"
 	model.Parent = map
 
-	block(model, "EndWall", Vector3.new(1, 20, 39), at(wallX, 6, 8.5), COLORS.Wall, Enum.Material.CeramicTiles)
+	-- The wall belongs to the map; the door model can be removed on its own (see GameLoop).
+	block(map, kind .. "EndWall", Vector3.new(1, 20, 39), at(wallX, 6, 8.5), COLORS.Wall, Enum.Material.CeramicTiles)
 	local door = block(model, "Door", Vector3.new(0.4, 8, 5), at(doorX, 5, 0), COLORS.Dark, Enum.Material.Metal)
 	block(model, "Frame", Vector3.new(0.3, 9, 6), at(sign * (HALF_LENGTH - 0.05), 5.5, 0), color)
 
@@ -1857,6 +1922,65 @@ local function buildClosedCar(map: Folder, centerX: number)
 	for _, offset in { -10, 10 } do
 		block(car, "DoorOutline", Vector3.new(7, 8, 0.1), at(centerX + offset, 5, 10.94), Color3.fromRGB(110, 115, 122), Enum.Material.Metal)
 	end
+end
+
+-- The driver's cab at the front of the train: hollow, with a windshield, headlights, a control
+-- desk and a driver you can see through the side window.
+local function buildCab(map: Folder, refs)
+	local cab = Instance.new("Model")
+	cab.Name = "DriverCab"
+	cab.Parent = map
+
+	local x0, x1 = 64, 84
+	local centerX = (x0 + x1) / 2
+	local length = x1 - x0
+	local glass = Color3.fromRGB(120, 150, 170)
+
+	block(cab, "Floor", Vector3.new(length, 4, 14), at(centerX, -1, 18), Color3.fromRGB(60, 60, 64), Enum.Material.DiamondPlate)
+	block(cab, "Roof", Vector3.new(length, 1, 14), at(centerX, 12.5, 18), COLORS.CarBody, Enum.Material.Metal)
+	block(cab, "BackWall", Vector3.new(0.5, 11, 14), at(x0 + 0.25, 6.5, 18), COLORS.CarBody, Enum.Material.Metal)
+	block(cab, "FarWall", Vector3.new(length, 11, 0.5), at(centerX, 6.5, 24.75), COLORS.CarBody, Enum.Material.Metal)
+
+	-- Platform side: solid wall with a big window near the front.
+	block(cab, "SideWallBack", Vector3.new(11, 11, 0.5), at(x0 + 5.5, 6.5, 11.25), COLORS.CarBody, Enum.Material.Metal)
+	block(cab, "SideWallLow", Vector3.new(9, 4, 0.5), at(x1 - 4.5, 3, 11.25), COLORS.CarBody, Enum.Material.Metal)
+	block(cab, "SideWallHigh", Vector3.new(9, 3, 0.5), at(x1 - 4.5, 10.5, 11.25), COLORS.CarBody, Enum.Material.Metal)
+	local sideWindow = block(cab, "SideWindow", Vector3.new(9, 4, 0.2), at(x1 - 4.5, 7, 11.25), glass, Enum.Material.Glass)
+	sideWindow.Transparency = 0.6
+	block(cab, "Stripe", Vector3.new(length, 0.6, 0.1), at(centerX, 3.2, 10.95), COLORS.CarStripe)
+
+	-- Front: windshield above a painted nose, headlights below.
+	block(cab, "Nose", Vector3.new(0.6, 5, 14), at(x1 + 0.3, 3.5, 18), COLORS.CarStripe, Enum.Material.Metal)
+	block(cab, "FrontTop", Vector3.new(0.6, 2, 14), at(x1 + 0.3, 11, 18), COLORS.CarBody, Enum.Material.Metal)
+	local windshield = block(cab, "Windshield", Vector3.new(0.2, 4, 14), at(x1 + 0.3, 8, 18), glass, Enum.Material.Glass)
+	windshield.Transparency = 0.5
+	for _, z in { 13.5, 22.5 } do
+		local lamp = block(cab, "Headlight", Vector3.new(0.3, 1, 1.6), at(x1 + 0.7, 3, z), Color3.fromRGB(255, 250, 225), Enum.Material.Neon)
+		local beam = Instance.new("SpotLight")
+		beam.Face = Enum.NormalId.Right
+		beam.Range = 40
+		beam.Angle = 50
+		beam.Brightness = 2
+		beam.Color = Color3.fromRGB(255, 248, 225)
+		beam.Parent = lamp
+	end
+
+	-- Control desk and the driver's seat.
+	local desk = block(cab, "ControlDesk", Vector3.new(2.5, 3.5, 9), at(x1 - 1.6, 2.75, 18), Color3.fromRGB(35, 38, 42), Enum.Material.Metal)
+	desk.CFrame = at(x1 - 1.6, 2.75, 18) * CFrame.Angles(0, 0, math.rad(-12))
+	for i, color in { Color3.fromRGB(60, 220, 90), Color3.fromRGB(240, 70, 60), Color3.fromRGB(250, 200, 40), Color3.fromRGB(70, 160, 255) } do
+		block(cab, "Button", Vector3.new(0.3, 0.3, 0.6), at(x1 - 2.6, 4.65, 15 + i * 1.2), color, Enum.Material.Neon)
+	end
+	local throttle = block(cab, "Throttle", Vector3.new(0.25, 1.4, 0.25), at(x1 - 2.8, 5.1, 20.5), Color3.fromRGB(20, 20, 22), Enum.Material.Metal)
+	throttle.CFrame = throttle.CFrame * CFrame.Angles(0, 0, math.rad(20))
+	block(cab, "DriverSeat", Vector3.new(2, 2, 2), at(x1 - 6, 2, 18), COLORS.CarSeat, Enum.Material.Fabric)
+	block(cab, "DriverSeatBack", Vector3.new(0.4, 3, 2), at(x1 - 7.2, 4.5, 18), COLORS.CarSeat, Enum.Material.Fabric)
+	Build.ceilingLight(cab, "CabLight", Vector3.new(4, 0.2, 2), at(centerX + 3, 11.9, 18), Color3.fromRGB(235, 240, 255), 0.9, 12)
+
+	-- The driver faces the way the train goes (+X).
+	refs.Driver = Npc.create("Driver", "Sit", at(x1 - 6, 3, 18) * CFrame.Angles(0, -math.pi / 2, 0), Color3.fromRGB(25, 45, 85))
+	refs.Driver.Parent = cab
+	refs.Cab = cab
 end
 
 -- The open car is wide and clear: wide doors, seats only along the far wall, and grab bars up at
@@ -2086,6 +2210,7 @@ function MapBuilder.build(stationOrigin: CFrame, name: string, language: string,
 	}
 	buildClosedCar(map, -42)
 	buildClosedCar(map, 42)
+	buildCab(map, refs)
 	refs.Car, refs.DoorPanels, refs.StandPoints = buildCar(map)
 	buildStation(map, refs, language)
 
@@ -2110,7 +2235,7 @@ return MapBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="30">
+      <Item class="ModuleScript" referent="31">
         <Properties>
           <string name="Name">Npc</string>
           <string name="Source"><![CDATA[-- Passengers. Each one appears straight away as a block mannequin, then (if
@@ -2242,7 +2367,7 @@ return Npc
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="31">
+      <Item class="ModuleScript" referent="32">
         <Properties>
           <string name="Name">SessionManager</string>
           <string name="Source"><![CDATA[-- Runs one game per group, and owns spawning and death.
@@ -2608,7 +2733,7 @@ return SessionManager
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="32">
+      <Item class="ModuleScript" referent="33">
         <Properties>
           <string name="Name">VoteManager</string>
           <string name="Source"><![CDATA[-- Majority vote by standing in front of a door. Each player votes with their body: whoever is
@@ -2630,6 +2755,10 @@ type Publish = (continueVotes: number, backVotes: number, voters: number, countd
 local VoteManager = {}
 
 local function isInside(zone: BasePart, position: Vector3): boolean
+	-- A removed door (the GO BACK door on level 1) takes no votes.
+	if not zone:IsDescendantOf(workspace) then
+		return false
+	end
 	local relative = zone.CFrame:PointToObjectSpace(position)
 	local half = zone.Size / 2
 	return math.abs(relative.X) <= half.X and math.abs(relative.Z) <= half.Z and relative.Y > -2 and relative.Y < 10
@@ -2722,29 +2851,219 @@ return VoteManager
       </Item>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="33">
+  <Item class="StarterPlayer" referent="34">
     <Properties>
       <string name="Name">StarterPlayer</string>
-      <token name="CameraMode">1</token>
+      <token name="CameraMode">0</token>
       <float name="CharacterWalkSpeed">16</float>
       <bool name="EnableMouseLockOption">false</bool>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="34">
+    <Item class="StarterPlayerScripts" referent="35">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="Folder" referent="35">
+      <Item class="Folder" referent="36">
         <Properties>
           <string name="Name">Client</string>
         </Properties>
-        <Item class="LocalScript" referent="36">
+        <Item class="LocalScript" referent="37">
+          <Properties>
+            <string name="Name">Camera</string>
+            <string name="Source"><![CDATA[-- Camera for every situation:
+--   Lobby      third person, normal mouse
+--   In game    first person, no cursor in the middle of the screen
+--   Dead       third person, watching your living teammates until the whole group is dead
+--              (then everyone respawns at level 1). Arrows or Q / E switch who you watch.
+-- A screen that needs clicks (the tutorial) sets the local "UiOpen" attribute to show the cursor.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+
+local Strings = require(ReplicatedStorage.Shared.Strings)
+
+local player = Players.LocalPlayer
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "Spectate"
+gui.ResetOnSpawn = false
+gui.Enabled = false
+
+local panel = Instance.new("Frame")
+panel.AnchorPoint = Vector2.new(0.5, 0)
+panel.Position = UDim2.new(0.5, 0, 0, 70)
+panel.Size = UDim2.fromOffset(460, 76)
+panel.BackgroundColor3 = Color3.fromRGB(16, 16, 20)
+panel.BackgroundTransparency = 0.2
+panel.Parent = gui
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 10)
+corner.Parent = panel
+
+local function label(position: UDim2, size: UDim2, color: Color3): TextLabel
+	local text = Instance.new("TextLabel")
+	text.BackgroundTransparency = 1
+	text.Position = position
+	text.Size = size
+	text.Font = Enum.Font.GothamBold
+	text.TextScaled = true
+	text.TextColor3 = color
+	text.Parent = panel
+	return text
+end
+local watching = label(UDim2.fromScale(0.14, 0.08), UDim2.fromScale(0.72, 0.5), Color3.fromRGB(230, 85, 75))
+local hint = label(UDim2.fromScale(0.14, 0.6), UDim2.fromScale(0.72, 0.32), Color3.fromRGB(200, 200, 205))
+
+local function arrow(text: string, x: number): TextButton
+	local button = Instance.new("TextButton")
+	button.Text = text
+	button.Position = UDim2.fromScale(x, 0.15)
+	button.Size = UDim2.fromScale(0.1, 0.7)
+	button.BackgroundColor3 = Color3.fromRGB(45, 45, 52)
+	button.TextColor3 = Color3.new(1, 1, 1)
+	button.Font = Enum.Font.GothamBold
+	button.TextScaled = true
+	button.Parent = panel
+	local round = Instance.new("UICorner")
+	round.CornerRadius = UDim.new(0, 8)
+	round.Parent = button
+	return button
+end
+local previous = arrow("<", 0.02)
+local nextButton = arrow(">", 0.88)
+
+gui.Parent = player:WaitForChild("PlayerGui")
+
+local index = 1
+
+local function teammates(): { Player }
+	local key = player:GetAttribute("SessionKey")
+	local list = {}
+	for _, other in Players:GetPlayers() do
+		local humanoid = other.Character and other.Character:FindFirstChildOfClass("Humanoid")
+		if other ~= player and other:GetAttribute("SessionKey") == key and humanoid and humanoid.Health > 0 then
+			table.insert(list, other)
+		end
+	end
+	return list
+end
+
+local THIRD_PERSON_ZOOM = 12
+
+local thirdPerson = nil
+
+local function setThirdPerson(enabled: boolean)
+	if thirdPerson == enabled then
+		return
+	end
+	thirdPerson = enabled
+	if enabled then
+		player.CameraMode = Enum.CameraMode.Classic
+		player.CameraMaxZoomDistance = 25
+		-- Coming out of first person the camera sits inside the head; push it back out.
+		player.CameraMinZoomDistance = THIRD_PERSON_ZOOM
+		task.delay(0.1, function()
+			if thirdPerson then
+				player.CameraMinZoomDistance = 2
+			end
+		end)
+	else
+		player.CameraMinZoomDistance = 0.5
+		player.CameraMode = Enum.CameraMode.LockFirstPerson
+	end
+end
+
+local function updateCursor()
+	-- In first person the mouse is locked; hide its icon unless a screen needs clicking.
+	UserInputService.MouseIconEnabled = thirdPerson == true or player:GetAttribute("UiOpen") == true
+end
+
+local function refresh()
+	local camera = Workspace.CurrentCamera
+	local inLobby = player:GetAttribute("Phase") == "Lobby" or player:GetAttribute("Phase") == nil
+	local dead = player:GetAttribute("Dead") == true and not inLobby
+	gui.Enabled = dead
+
+	if not dead then
+		setThirdPerson(inLobby)
+		updateCursor()
+		local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+		if humanoid then
+			camera.CameraSubject = humanoid
+		end
+		return
+	end
+
+	setThirdPerson(true)
+	updateCursor()
+	local language = player:GetAttribute("Language")
+	hint.Text = Strings.get(language, "SpectateHint")
+
+	local list = teammates()
+	if #list == 0 then
+		watching.Text = Strings.get(language, "Spectating", "...")
+		return
+	end
+	index = (index - 1) % #list + 1
+	local target = list[index]
+	watching.Text = Strings.get(language, "Spectating", target.DisplayName)
+	local humanoid = target.Character and target.Character:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		camera.CameraSubject = humanoid
+	end
+end
+
+previous.Activated:Connect(function()
+	index -= 1
+	refresh()
+end)
+nextButton.Activated:Connect(function()
+	index += 1
+	refresh()
+end)
+UserInputService.InputBegan:Connect(function(input, processed)
+	if processed or not gui.Enabled then
+		return
+	end
+	if input.KeyCode == Enum.KeyCode.Q then
+		index -= 1
+		refresh()
+	elseif input.KeyCode == Enum.KeyCode.E then
+		index += 1
+		refresh()
+	end
+end)
+
+player:GetAttributeChangedSignal("Dead"):Connect(refresh)
+player:GetAttributeChangedSignal("UiOpen"):Connect(updateCursor)
+player:GetAttributeChangedSignal("Phase"):Connect(refresh)
+player.CharacterAdded:Connect(function()
+	task.wait()
+	refresh()
+end)
+
+refresh()
+
+-- Re-check now and then: the teammate you watch may die too, or the stations may change.
+while true do
+	task.wait(1)
+	if gui.Enabled then
+		refresh()
+	end
+end
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="LocalScript" referent="38">
           <Properties>
             <string name="Name">HUD</string>
             <string name="Source"><![CDATA[-- Player HUD.
---   Lobby (always English): gate status, and for the host: group size 1-10, language AR/EN,
---   "Start now".
+--   Lobby (always English): a clear screen; on a gate, its status, and for the host: group size
+--   1-10, language AR/EN, "Start now".
 --   In game (the group's language): level and station counter, the rule, the live door vote,
---   "Back to lobby", messages, and the black screen between stations.
+--   "Back to lobby", the tutorial (level 1, and again when the dark half begins), messages, and
+--   the black screen between stations.
 -- All state comes from attributes on the local Player (see Shared/Net).
 
 local Players = game:GetService("Players")
@@ -2870,13 +3189,15 @@ local voteStatus = text(votePanel, "Status", { Position = UDim2.fromScale(0.04, 
 
 local lobbyHud = create("Frame", gui, { Name = "Lobby", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1 })
 
+-- Only shown when you step on a gate that is already full; otherwise the screen stays clear.
 local lobbyHint = text(lobbyHud, "Hint", {
 	AnchorPoint = Vector2.new(0.5, 1),
 	Position = UDim2.new(0.5, 0, 1, -30),
 	Size = UDim2.fromOffset(560, 30),
 	TextColor3 = Color3.fromRGB(220, 220, 220),
 	TextStrokeTransparency = 0.5,
-	Text = string.format("Walk onto a gate to play. Groups of %d-%d players.", Config.MinPartySize, Config.MaxPartySize),
+	Text = "This gate is full. Try another one.",
+	Visible = false,
 })
 
 local gatePanel = create("Frame", lobbyHud, {
@@ -2907,9 +3228,6 @@ local startButton = button(hostControls, "Start", {
 	Size = UDim2.new(1, 0, 0, 40),
 	BackgroundColor3 = Color3.fromRGB(35, 120, 70),
 	Text = "Start now",
-	-- The camera is first person, which locks the mouse; a visible Modal button frees it so the
-	-- host can click the controls.
-	Modal = true,
 })
 
 -- ===== Messages and blackout =====
@@ -2932,6 +3250,42 @@ local blackout = create("Frame", gui, {
 	ZIndex = 2,
 })
 
+-- ===== Tutorial =====
+
+local tutorial = create("Frame", gui, {
+	Name = "Tutorial",
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.fromScale(0.5, 0.5),
+	Size = UDim2.fromOffset(560, 330),
+	BackgroundColor3 = PANEL,
+	BackgroundTransparency = 0.08,
+	Visible = false,
+	ZIndex = 4,
+})
+rounded(tutorial, 14)
+create("UIStroke", tutorial, { Color = YELLOW, Thickness = 2, Transparency = 0.3 })
+local tutorialTitle = text(tutorial, "Title", { Position = UDim2.new(0, 24, 0, 18), Size = UDim2.new(1, -48, 0, 36), TextColor3 = YELLOW, ZIndex = 4 })
+local tutorialBody = text(tutorial, "Body", {
+	Position = UDim2.new(0, 24, 0, 66),
+	Size = UDim2.new(1, -48, 0, 190),
+	TextScaled = false,
+	TextSize = 20,
+	TextWrapped = true,
+	TextYAlignment = Enum.TextYAlignment.Top,
+	LineHeight = 1.15,
+	Font = Enum.Font.Gotham,
+	ZIndex = 4,
+})
+local tutorialOk = button(tutorial, "Ok", {
+	AnchorPoint = Vector2.new(0.5, 1),
+	Position = UDim2.new(0.5, 0, 1, -18),
+	Size = UDim2.fromOffset(200, 44),
+	BackgroundColor3 = Color3.fromRGB(35, 120, 70),
+	ZIndex = 4,
+	-- In first person the mouse is locked; a visible Modal button frees it so it can be clicked.
+	Modal = true,
+})
+
 gui.Parent = player:WaitForChild("PlayerGui")
 
 -- ===== Refresh =====
@@ -2942,6 +3296,13 @@ local function attr(name: string, default: any): any
 		return default
 	end
 	return value
+end
+
+local tutorialsSeen: { [string]: boolean } = {}
+
+local function closeTutorial()
+	tutorial.Visible = false
+	player:SetAttribute("UiOpen", false)
 end
 
 local function refresh()
@@ -2961,7 +3322,8 @@ local function refresh()
 		local checkpoint = attr("Checkpoint", 0)
 		checkpointLabel.Visible = checkpoint > 0
 		checkpointLabel.Text = t("HudCheckpoint", checkpoint)
-		ruleLabel.Text = t("Rule")
+		local backDoor = attr("BackDoor", true)
+		ruleLabel.Text = t(if backDoor then "Rule" else "RuleFirst")
 		leaveButton.Text = if UserInputService.TouchEnabled then t("LeaveRun") else t("LeaveRun") .. "  [L]"
 
 		-- Dead players spectate instead of voting.
@@ -2970,6 +3332,8 @@ local function refresh()
 		local voters, countdown = attr("Voters", 0), attr("VoteCountdown", -1)
 		continueLabel.Text = t("VoteContinue", continueVotes)
 		backLabel.Text = t("VoteBack", backVotes)
+		backLabel.Visible = backDoor
+		continueLabel.Position = if backDoor then UDim2.fromScale(0.52, 0.1) else UDim2.fromScale(0.28, 0.1)
 		if attr("VoteTie", false) then
 			voteStatus.Text = t("VoteTie")
 		elseif countdown >= 0 then
@@ -2979,18 +3343,36 @@ local function refresh()
 		else
 			voteStatus.Text = t("VoteWaiting", continueVotes + backVotes, voters)
 		end
+
+		-- Each tutorial shows once per game: on level 1, and when the dark half begins.
+		if phase == "Station" and not attr("Dead", false) then
+			local level = attr("Level", 1)
+			local which = if level == 1 then "Calm" elseif level == Config.HorrorStartsAtLevel then "Horror" else nil
+			local key = which and (tostring(attr("SessionKey", "")) .. which)
+			if key and not tutorialsSeen[key] then
+				tutorialsSeen[key] = true
+				tutorialTitle.Text = t(if which == "Calm" then "TutorialTitle" else "TutorialHorrorTitle")
+				tutorialBody.Text = t(if which == "Calm" then "TutorialBody" else "TutorialHorrorBody")
+				tutorialOk.Text = t("TutorialOk")
+				local alignment = if language == "ar" then Enum.TextXAlignment.Right else Enum.TextXAlignment.Left
+				tutorialTitle.TextXAlignment = alignment
+				tutorialBody.TextXAlignment = alignment
+				tutorial.Visible = true
+				player:SetAttribute("UiOpen", true)
+			end
+		elseif phase ~= "Station" and tutorial.Visible then
+			closeTutorial()
+		end
 		return
+	end
+	if tutorial.Visible then
+		closeTutorial()
 	end
 
 	local pad = attr("Pad", 0)
 	local onGate = pad > 0
 	gatePanel.Visible = onGate
-	lobbyHint.Visible = not onGate
-	if attr("PadFull", false) and not onGate then
-		lobbyHint.Text = "This gate is full. Try another one."
-	else
-		lobbyHint.Text = string.format("Walk onto a gate to play. Groups of %d-%d players.", Config.MinPartySize, Config.MaxPartySize)
-	end
+	lobbyHint.Visible = attr("PadFull", false) and not onGate
 	if not onGate then
 		return
 	end
@@ -3036,6 +3418,7 @@ end)
 startButton.Activated:Connect(function()
 	lobbyAction:FireServer("StartNow")
 end)
+tutorialOk.Activated:Connect(closeTutorial)
 leaveButton.Activated:Connect(function()
 	lobbyAction:FireServer("LeaveRun")
 end)
@@ -3083,7 +3466,7 @@ end)
 ]]></string>
           </Properties>
         </Item>
-        <Item class="LocalScript" referent="37">
+        <Item class="LocalScript" referent="39">
           <Properties>
             <string name="Name">Mood</string>
             <string name="Source"><![CDATA[-- Local look of the world, from the player's "Mood" attribute:
@@ -3171,159 +3554,7 @@ apply()
 ]]></string>
           </Properties>
         </Item>
-        <Item class="LocalScript" referent="38">
-          <Properties>
-            <string name="Name">Spectate</string>
-            <string name="Source"><![CDATA[-- When you die mid-game you stay dead and watch your living teammates, in third person, until
--- the whole group is dead (then everyone respawns at level 1). Tap the arrows or press Q / E to
--- switch who you watch.
-
-local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local UserInputService = game:GetService("UserInputService")
-local Workspace = game:GetService("Workspace")
-
-local Strings = require(ReplicatedStorage.Shared.Strings)
-
-local player = Players.LocalPlayer
-
-local gui = Instance.new("ScreenGui")
-gui.Name = "Spectate"
-gui.ResetOnSpawn = false
-gui.Enabled = false
-
-local panel = Instance.new("Frame")
-panel.AnchorPoint = Vector2.new(0.5, 0)
-panel.Position = UDim2.new(0.5, 0, 0, 70)
-panel.Size = UDim2.fromOffset(460, 76)
-panel.BackgroundColor3 = Color3.fromRGB(16, 16, 20)
-panel.BackgroundTransparency = 0.2
-panel.Parent = gui
-local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0, 10)
-corner.Parent = panel
-
-local function label(position: UDim2, size: UDim2, color: Color3): TextLabel
-	local text = Instance.new("TextLabel")
-	text.BackgroundTransparency = 1
-	text.Position = position
-	text.Size = size
-	text.Font = Enum.Font.GothamBold
-	text.TextScaled = true
-	text.TextColor3 = color
-	text.Parent = panel
-	return text
-end
-local watching = label(UDim2.fromScale(0.14, 0.08), UDim2.fromScale(0.72, 0.5), Color3.fromRGB(230, 85, 75))
-local hint = label(UDim2.fromScale(0.14, 0.6), UDim2.fromScale(0.72, 0.32), Color3.fromRGB(200, 200, 205))
-
-local function arrow(text: string, x: number): TextButton
-	local button = Instance.new("TextButton")
-	button.Text = text
-	button.Position = UDim2.fromScale(x, 0.15)
-	button.Size = UDim2.fromScale(0.1, 0.7)
-	button.BackgroundColor3 = Color3.fromRGB(45, 45, 52)
-	button.TextColor3 = Color3.new(1, 1, 1)
-	button.Font = Enum.Font.GothamBold
-	button.TextScaled = true
-	button.Parent = panel
-	local round = Instance.new("UICorner")
-	round.CornerRadius = UDim.new(0, 8)
-	round.Parent = button
-	return button
-end
-local previous = arrow("<", 0.02)
-local nextButton = arrow(">", 0.88)
-
-gui.Parent = player:WaitForChild("PlayerGui")
-
-local index = 1
-
-local function teammates(): { Player }
-	local key = player:GetAttribute("SessionKey")
-	local list = {}
-	for _, other in Players:GetPlayers() do
-		local humanoid = other.Character and other.Character:FindFirstChildOfClass("Humanoid")
-		if other ~= player and other:GetAttribute("SessionKey") == key and humanoid and humanoid.Health > 0 then
-			table.insert(list, other)
-		end
-	end
-	return list
-end
-
-local function refresh()
-	local camera = Workspace.CurrentCamera
-	local dead = player:GetAttribute("Dead") == true and player:GetAttribute("Phase") ~= "Lobby"
-	gui.Enabled = dead
-
-	if not dead then
-		-- Back to normal first person on your own character.
-		player.CameraMode = Enum.CameraMode.LockFirstPerson
-		local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-		if humanoid then
-			camera.CameraSubject = humanoid
-		end
-		return
-	end
-
-	player.CameraMode = Enum.CameraMode.Classic
-	player.CameraMaxZoomDistance = 20
-	local language = player:GetAttribute("Language")
-	hint.Text = Strings.get(language, "SpectateHint")
-
-	local list = teammates()
-	if #list == 0 then
-		watching.Text = Strings.get(language, "Spectating", "...")
-		return
-	end
-	index = (index - 1) % #list + 1
-	local target = list[index]
-	watching.Text = Strings.get(language, "Spectating", target.DisplayName)
-	local humanoid = target.Character and target.Character:FindFirstChildOfClass("Humanoid")
-	if humanoid then
-		camera.CameraSubject = humanoid
-	end
-end
-
-previous.Activated:Connect(function()
-	index -= 1
-	refresh()
-end)
-nextButton.Activated:Connect(function()
-	index += 1
-	refresh()
-end)
-UserInputService.InputBegan:Connect(function(input, processed)
-	if processed or not gui.Enabled then
-		return
-	end
-	if input.KeyCode == Enum.KeyCode.Q then
-		index -= 1
-		refresh()
-	elseif input.KeyCode == Enum.KeyCode.E then
-		index += 1
-		refresh()
-	end
-end)
-
-player:GetAttributeChangedSignal("Dead"):Connect(refresh)
-player:GetAttributeChangedSignal("Phase"):Connect(refresh)
-player.CharacterAdded:Connect(function()
-	task.wait()
-	refresh()
-end)
-
--- Re-check now and then: the teammate you watch may die too, or the stations may change.
-while true do
-	task.wait(1)
-	if gui.Enabled then
-		refresh()
-	end
-end
-]]></string>
-          </Properties>
-        </Item>
-        <Item class="LocalScript" referent="39">
+        <Item class="LocalScript" referent="40">
           <Properties>
             <string name="Name">Sprint</string>
             <string name="Source"><![CDATA[-- Sprinting. PC: hold Shift. Mobile: a button on screen toggles between sprint and walk.

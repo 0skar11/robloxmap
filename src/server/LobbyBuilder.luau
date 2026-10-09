@@ -74,9 +74,8 @@ local function buildHall(lobby: Folder)
 	spawn.Anchored = true
 	spawn.Neutral = true
 	spawn.Duration = 0
-	spawn.Color = COLORS.Yellow
-	spawn.Material = Enum.Material.Neon
-	spawn.Transparency = 0.6
+	-- Invisible: nothing on the floor between the player and the gates.
+	spawn.Transparency = 1
 	spawn.CanCollide = false
 	spawn.Parent = lobby
 	return spawn

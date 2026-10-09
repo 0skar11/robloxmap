@@ -6,6 +6,7 @@
 --   Mood             "Lobby" | "Calm" (levels 1-5, bright) | "Horror" (dark) - drives the local look
 --   Language         "ar" | "en" for the player's session ("en" in the lobby)
 --   Level, TotalLevels, Checkpoint (0 = none yet)
+--   BackDoor         false while the GO BACK door does not exist yet (level 1)
 --   Dead             true while spectating after dying mid-game
 --   SessionKey       same value for everyone in one group (spectators find teammates by it)
 --   VotesContinue, VotesBack, Voters

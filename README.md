@@ -9,11 +9,15 @@
 - **مجموعات من 1 لـ 10:** أول واحد يقف على بوابة هو الـ host، وبيختار عدد اللاعبين واللغة (العربية / English) لمجموعته بس.
 - **كل مجموعة في عالم لوحدها:** في اللعبة الحقيقية (بعد Publish)، البوابة بتنقل المجموعة لسيرفر خاص بيها. في Studio كله بيشتغل في سيرفر واحد، بس كل مجموعة ليها نسخة محطة لوحدها.
 - **15 Level:**
+  - **Level 1:** دايمًا أمان، مفيهوش أي anomaly، ومفيهوش باب "ارجع" أصلًا. الباب بيظهر من Level 2.
   - **Level 1 لـ 5:** محطة عادية منورة ومبهجة. فيها تغييرات بسيطة تدور عليها، ومفيش رعب.
   - **Level 5 = Checkpoint:** بيظهر على الشاشة. بعده لو غلطتوا بترجعوا لـ Level 6 مش Level 1.
   - **من Level 6:** النور بيطفي، والتلميحات بتظهر (الجرنال والورد والموبايل)، والحاجات المرعبة بتبدأ.
 - **الموت:** "The Follower" (شخص أسود من غير ملامح) بيمشي ناحيتك، ولو لمسك بتموت. اللي بيموت بيتفرج على صحابه، ولما المجموعة كلها تموت كلكم بترجعوا Level 1.
-- **First person**، و **Shift** للجري على الكمبيوتر، وزرار **جري / مشي** على الموبايل.
+- **Tutorial** بلغة المجموعة لكل اللاعبين في Level 1 ("لو لقيت حاجة مختلفة يبقى فيه مشكلة")، وتاني لما الرعب يبدأ في Level 6.
+- **الكاميرا:** third person في اللوبي، و first person جوه اللعبة من غير ماوس في نص الشاشة.
+- **Shift** للجري على الكمبيوتر، وزرار **جري / مشي** على الموبايل.
+- **كابينة السواق** في أول القطر: زجاج قدامي، وأنوار، ولوحة تحكم، وسواق قاعد.
 - **قطر واسع:** أبواب عريضة، ومفيش أعمدة في النص.
 - **الركاب** بيلبسوا avatars حقيقية عشوائية من روبلوكس.
 
@@ -48,6 +52,7 @@
 | `WrongLineNumber` | رقم الخط 41 بدل 14 |
 | `MissingPillar` | عمود مش موجود |
 | `TurnedBench` | كرسي فاضي متلف ناحية الحيطة |
+| `MissingDriver` | مفيش سواق في الكابينة |
 
 **مرعبة (من Level 6):**
 
@@ -82,15 +87,16 @@ return {
 - `ctx:Set(instance, "Property", value)`
 - `ctx:SetAttribute(instance, "Name", value)`
 - `ctx:Pivot(model, cframe)`
+- `ctx:Hide(model)`: يخفي حاجة من غير ما يمسحها
 - `ctx:Add(instance)`: حاجة جديدة بتتمسح بعد المحطة
 - `ctx:Connect(signal, fn)` و `ctx:Spawn(fn)`: لأي حاجة بتتحرك
 - `ctx:Pick(list)`: اختيار عشوائي
 - `ctx:Text("Key", ...)`: كلام بلغة المجموعة. الكلام نفسه في `src/shared/Strings.luau` بالعربي والإنجليزي.
-- `ctx.Refs`: فيه `Lights`, `Posters`, `Passengers`, `Benches`, `Pillars`, `Clock`, `ClockLabel`, `LineBadge`, `StationName`, `PhoneLabel`, `NewspaperLabel`، و `At(x, y, z)` بيحوّل مكان في المحطة لمكان في العالم.
+- `ctx.Refs`: فيه `Lights`, `Posters`, `Passengers`, `Benches`, `Pillars`, `Clock`, `ClockLabel`, `LineBadge`, `StationName`, `PhoneLabel`, `NewspaperLabel`, `Driver`، و `At(x, y, z)` بيحوّل مكان في المحطة لمكان في العالم.
 
 ## الإعدادات (`src/shared/Config.luau`)
 
-- **الـ Levels:** `TotalLevels` و `Checkpoints` و `HorrorStartsAtLevel`.
+- **الـ Levels:** `TotalLevels` و `Checkpoints` و `HorrorStartsAtLevel` و `BackDoorFromLevel`.
 - **الـ anomalies:** `AnomalyChance`، و `CalmAnomalies` (لو false، Level 1 لـ 5 مفيهاش أي تغيير خالص).
 - **اللوبي:** `MinPartySize` و `MaxPartySize` و `LobbyPads`.
 - **السيرفرات:** `UseSeparateServers`.
@@ -114,7 +120,7 @@ src/
            GameLoop, VoteManager         الـ Levels والتصويت
            MapBuilder, Build, Npc, Mannequin, Graphics
            AnomalyContext, AnomalyRegistry, Anomalies/*
-  client/  HUD, Mood (الإضاءة), Sprint, Spectate   → StarterPlayerScripts.Client
+  client/  HUD, Mood (الإضاءة), Sprint, Camera (والمشاهدة بعد الموت)   → StarterPlayerScripts.Client
 ```
 
 ## اللي لسه

@@ -1,8 +1,9 @@
 -- Player HUD.
---   Lobby (always English): gate status, and for the host: group size 1-10, language AR/EN,
---   "Start now".
+--   Lobby (always English): a clear screen; on a gate, its status, and for the host: group size
+--   1-10, language AR/EN, "Start now".
 --   In game (the group's language): level and station counter, the rule, the live door vote,
---   "Back to lobby", messages, and the black screen between stations.
+--   "Back to lobby", the tutorial (level 1, and again when the dark half begins), messages, and
+--   the black screen between stations.
 -- All state comes from attributes on the local Player (see Shared/Net).
 
 local Players = game:GetService("Players")
@@ -128,13 +129,15 @@ local voteStatus = text(votePanel, "Status", { Position = UDim2.fromScale(0.04, 
 
 local lobbyHud = create("Frame", gui, { Name = "Lobby", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1 })
 
+-- Only shown when you step on a gate that is already full; otherwise the screen stays clear.
 local lobbyHint = text(lobbyHud, "Hint", {
 	AnchorPoint = Vector2.new(0.5, 1),
 	Position = UDim2.new(0.5, 0, 1, -30),
 	Size = UDim2.fromOffset(560, 30),
 	TextColor3 = Color3.fromRGB(220, 220, 220),
 	TextStrokeTransparency = 0.5,
-	Text = string.format("Walk onto a gate to play. Groups of %d-%d players.", Config.MinPartySize, Config.MaxPartySize),
+	Text = "This gate is full. Try another one.",
+	Visible = false,
 })
 
 local gatePanel = create("Frame", lobbyHud, {
@@ -165,9 +168,6 @@ local startButton = button(hostControls, "Start", {
 	Size = UDim2.new(1, 0, 0, 40),
 	BackgroundColor3 = Color3.fromRGB(35, 120, 70),
 	Text = "Start now",
-	-- The camera is first person, which locks the mouse; a visible Modal button frees it so the
-	-- host can click the controls.
-	Modal = true,
 })
 
 -- ===== Messages and blackout =====
@@ -190,6 +190,42 @@ local blackout = create("Frame", gui, {
 	ZIndex = 2,
 })
 
+-- ===== Tutorial =====
+
+local tutorial = create("Frame", gui, {
+	Name = "Tutorial",
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.fromScale(0.5, 0.5),
+	Size = UDim2.fromOffset(560, 330),
+	BackgroundColor3 = PANEL,
+	BackgroundTransparency = 0.08,
+	Visible = false,
+	ZIndex = 4,
+})
+rounded(tutorial, 14)
+create("UIStroke", tutorial, { Color = YELLOW, Thickness = 2, Transparency = 0.3 })
+local tutorialTitle = text(tutorial, "Title", { Position = UDim2.new(0, 24, 0, 18), Size = UDim2.new(1, -48, 0, 36), TextColor3 = YELLOW, ZIndex = 4 })
+local tutorialBody = text(tutorial, "Body", {
+	Position = UDim2.new(0, 24, 0, 66),
+	Size = UDim2.new(1, -48, 0, 190),
+	TextScaled = false,
+	TextSize = 20,
+	TextWrapped = true,
+	TextYAlignment = Enum.TextYAlignment.Top,
+	LineHeight = 1.15,
+	Font = Enum.Font.Gotham,
+	ZIndex = 4,
+})
+local tutorialOk = button(tutorial, "Ok", {
+	AnchorPoint = Vector2.new(0.5, 1),
+	Position = UDim2.new(0.5, 0, 1, -18),
+	Size = UDim2.fromOffset(200, 44),
+	BackgroundColor3 = Color3.fromRGB(35, 120, 70),
+	ZIndex = 4,
+	-- In first person the mouse is locked; a visible Modal button frees it so it can be clicked.
+	Modal = true,
+})
+
 gui.Parent = player:WaitForChild("PlayerGui")
 
 -- ===== Refresh =====
@@ -200,6 +236,13 @@ local function attr(name: string, default: any): any
 		return default
 	end
 	return value
+end
+
+local tutorialsSeen: { [string]: boolean } = {}
+
+local function closeTutorial()
+	tutorial.Visible = false
+	player:SetAttribute("UiOpen", false)
 end
 
 local function refresh()
@@ -219,7 +262,8 @@ local function refresh()
 		local checkpoint = attr("Checkpoint", 0)
 		checkpointLabel.Visible = checkpoint > 0
 		checkpointLabel.Text = t("HudCheckpoint", checkpoint)
-		ruleLabel.Text = t("Rule")
+		local backDoor = attr("BackDoor", true)
+		ruleLabel.Text = t(if backDoor then "Rule" else "RuleFirst")
 		leaveButton.Text = if UserInputService.TouchEnabled then t("LeaveRun") else t("LeaveRun") .. "  [L]"
 
 		-- Dead players spectate instead of voting.
@@ -228,6 +272,8 @@ local function refresh()
 		local voters, countdown = attr("Voters", 0), attr("VoteCountdown", -1)
 		continueLabel.Text = t("VoteContinue", continueVotes)
 		backLabel.Text = t("VoteBack", backVotes)
+		backLabel.Visible = backDoor
+		continueLabel.Position = if backDoor then UDim2.fromScale(0.52, 0.1) else UDim2.fromScale(0.28, 0.1)
 		if attr("VoteTie", false) then
 			voteStatus.Text = t("VoteTie")
 		elseif countdown >= 0 then
@@ -237,18 +283,36 @@ local function refresh()
 		else
 			voteStatus.Text = t("VoteWaiting", continueVotes + backVotes, voters)
 		end
+
+		-- Each tutorial shows once per game: on level 1, and when the dark half begins.
+		if phase == "Station" and not attr("Dead", false) then
+			local level = attr("Level", 1)
+			local which = if level == 1 then "Calm" elseif level == Config.HorrorStartsAtLevel then "Horror" else nil
+			local key = which and (tostring(attr("SessionKey", "")) .. which)
+			if key and not tutorialsSeen[key] then
+				tutorialsSeen[key] = true
+				tutorialTitle.Text = t(if which == "Calm" then "TutorialTitle" else "TutorialHorrorTitle")
+				tutorialBody.Text = t(if which == "Calm" then "TutorialBody" else "TutorialHorrorBody")
+				tutorialOk.Text = t("TutorialOk")
+				local alignment = if language == "ar" then Enum.TextXAlignment.Right else Enum.TextXAlignment.Left
+				tutorialTitle.TextXAlignment = alignment
+				tutorialBody.TextXAlignment = alignment
+				tutorial.Visible = true
+				player:SetAttribute("UiOpen", true)
+			end
+		elseif phase ~= "Station" and tutorial.Visible then
+			closeTutorial()
+		end
 		return
+	end
+	if tutorial.Visible then
+		closeTutorial()
 	end
 
 	local pad = attr("Pad", 0)
 	local onGate = pad > 0
 	gatePanel.Visible = onGate
-	lobbyHint.Visible = not onGate
-	if attr("PadFull", false) and not onGate then
-		lobbyHint.Text = "This gate is full. Try another one."
-	else
-		lobbyHint.Text = string.format("Walk onto a gate to play. Groups of %d-%d players.", Config.MinPartySize, Config.MaxPartySize)
-	end
+	lobbyHint.Visible = attr("PadFull", false) and not onGate
 	if not onGate then
 		return
 	end
@@ -294,6 +358,7 @@ end)
 startButton.Activated:Connect(function()
 	lobbyAction:FireServer("StartNow")
 end)
+tutorialOk.Activated:Connect(closeTutorial)
 leaveButton.Activated:Connect(function()
 	lobbyAction:FireServer("LeaveRun")
 end)
