@@ -55,7 +55,7 @@ local function buildHall(lobby: Folder)
 
 	for x = -45, 45, 18 do
 		for z = -30, 30, 15 do
-			Build.ceilingLight(lobby, "Light", Vector3.new(10, 0.2, 1.2), at(x, 19.9, z), COLORS.Light, 2.2, 28)
+			Build.ceilingLight(lobby, "Light", Vector3.new(10, 0.2, 1.2), at(x, 19.9, z), COLORS.Light, 1.75, 28)
 		end
 	end
 

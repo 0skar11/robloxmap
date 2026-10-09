@@ -2,7 +2,8 @@
 -- inside a door's zone votes for it, and stepping out takes the vote back.
 --
 -- The vote locks in when every player is at a door, there is a clear majority, and nobody moves
--- for Config.VoteConfirmSeconds. A tie keeps everyone arguing until the timeout, then a coin flip.
+-- for Config.VoteConfirmSeconds. There is no time limit by default: a tie keeps everyone arguing
+-- until they agree. (With Config.VoteTimeoutSeconds set, a timeout forces the call, tie by coin flip.)
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -94,7 +95,8 @@ function VoteManager.collect(
 			end
 		end
 
-		if firstVoteAt and now - firstVoteAt >= Config.VoteTimeoutSeconds then
+		local timeout = Config.VoteTimeoutSeconds
+		if timeout and firstVoteAt and now - firstVoteAt >= timeout then
 			publish(continueVotes, backVotes, voters, -1, false)
 			if continueVotes == backVotes then
 				return if random:NextNumber() < 0.5 then "Continue" else "Back", true, "Decided"

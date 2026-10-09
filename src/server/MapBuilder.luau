@@ -61,6 +61,9 @@ local COLORS = {
 	CabBlue = Color3.fromRGB(40, 85, 150),
 	Dark = Color3.fromRGB(18, 18, 20),
 	SeatShell = Color3.fromRGB(150, 95, 45),
+	-- What the bright colors fade to in the dark half.
+	GloomPillar = Color3.fromRGB(88, 96, 82),
+	GloomSeat = Color3.fromRGB(88, 74, 60),
 	Continue = Color3.fromRGB(40, 140, 80),
 	Back = Color3.fromRGB(170, 50, 45),
 	Light = Color3.fromRGB(255, 246, 228),
@@ -84,6 +87,12 @@ local origin = CFrame.new()
 
 local function at(x: number, y: number, z: number): CFrame
 	return origin * CFrame.new(x, y, z)
+end
+
+-- Remembers a part's bright color and the gloomy one it turns in the dark half (see GameLoop).
+local function gloomy(refs, part: BasePart, horrorColor: Color3): BasePart
+	table.insert(refs.Gloomy, { Part = part, Calm = part.Color, Horror = horrorColor })
+	return part
 end
 
 local function noCollide(part: BasePart): BasePart
@@ -391,7 +400,7 @@ local function buildCar(map: Folder, language: string)
 	end
 
 	for _, z in { 14.6, 20.9 } do
-		Build.ceilingLight(car, "LightStrip", Vector3.new(36, 0.15, 0.8), at(0, CAR.RoofBottom - 0.2, z), Color3.fromRGB(240, 245, 255), 1.4, 14)
+		Build.ceilingLight(car, "LightStrip", Vector3.new(36, 0.15, 0.8), at(0, CAR.RoofBottom - 0.2, z), Color3.fromRGB(240, 245, 255), 1.1, 14)
 	end
 
 	-- Where the group stands when the train stops: two rows in the aisle, enough for 10 players.
@@ -475,13 +484,14 @@ end
 
 -- A row of three metal seats. The middle seat is the PrimaryPart (anomalies turn the bench around
 -- it, and seated passengers sit on it).
-local function seatRow(station: Folder, x: number): Model
+local function seatRow(station: Folder, refs, x: number): Model
 	local bench = Instance.new("Model")
 	bench.Name = "Bench"
 	local middle = nil
 	for i = -1, 1 do
 		local seat = block(bench, "Seat", Vector3.new(1.8, 0.4, 1.7), at(x + i * 2, 2.8, -8.2), COLORS.SeatShell)
-		block(bench, "SeatBack", Vector3.new(1.8, 1.8, 0.3), at(x + i * 2, 3.95, -9.05), COLORS.SeatShell)
+		gloomy(refs, seat, COLORS.GloomSeat)
+		gloomy(refs, block(bench, "SeatBack", Vector3.new(1.8, 1.8, 0.3), at(x + i * 2, 3.95, -9.05), COLORS.SeatShell), COLORS.GloomSeat)
 		if i == 0 then
 			middle = seat
 		end
@@ -500,13 +510,13 @@ local function buildStation(map: Folder, refs, language: string)
 	station.Name = "Station"
 	station.Parent = map
 
-	-- Two-tone pillars down the middle of the platform.
+	-- Two-tone pillars down the middle of the platform, spaced out to keep it open.
 	refs.Pillars = {}
-	for x = -80, 80, 20 do
+	for x = -80, 80, 40 do
 		local pillar = Instance.new("Model")
 		pillar.Name = "Pillar"
 		block(pillar, "Core", Vector3.new(2, 15, 2), at(x, 8.5, 1), COLORS.Pillar, Enum.Material.SmoothPlastic)
-		block(pillar, "Band", Vector3.new(2.3, 8, 2.3), at(x, 9, 1), COLORS.PillarBand, Enum.Material.SmoothPlastic)
+		gloomy(refs, block(pillar, "Band", Vector3.new(2.3, 8, 2.3), at(x, 9, 1), COLORS.PillarBand, Enum.Material.SmoothPlastic), COLORS.GloomPillar)
 		block(pillar, "Base", Vector3.new(2.6, 0.6, 2.6), at(x, 1.3, 1), Color3.fromRGB(150, 152, 156), Enum.Material.Metal)
 		pillar:SetAttribute("X", x)
 		pillar.Parent = station
@@ -531,7 +541,7 @@ local function buildStation(map: Folder, refs, language: string)
 	local busyBenches = { [-70] = true, [-30] = true, [-10] = true, [30] = true }
 	refs.Benches = {}
 	for x = -70, 70, 20 do
-		local bench = seatRow(station, x)
+		local bench = seatRow(station, refs, x)
 		bench:SetAttribute("Free", not busyBenches[x])
 		table.insert(refs.Benches, bench)
 	end
@@ -581,6 +591,7 @@ local function buildStation(map: Folder, refs, language: string)
 	-- Trash bins: upright cylinders (a cylinder's axis is its X, so turn it to stand up).
 	for _, x in { -44, 44 } do
 		local bin = block(station, "TrashBin", Vector3.new(2.4, 1.6, 1.6), at(x, 2.2, -9) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(40, 70, 130), Enum.Material.Metal)
+		gloomy(refs, bin, Color3.fromRGB(45, 50, 55))
 		bin.Shape = Enum.PartType.Cylinder
 	end
 
@@ -656,6 +667,7 @@ function MapBuilder.build(stationOrigin: CFrame, name: string, language: string,
 		Origin = stationOrigin,
 		Language = language,
 		Lights = {},
+		Gloomy = {},
 		At = function(x: number, y: number, z: number): CFrame
 			return stationOrigin * CFrame.new(x, y, z)
 		end,
