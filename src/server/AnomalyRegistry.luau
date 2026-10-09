@@ -2,12 +2,14 @@
 --
 --   return {
 --       Name = "MyAnomaly",
+--       Horror = true,  -- optional: only from Config.HorrorStartsAtLevel on
 --       Apply = function(ctx) ctx:Set(ctx.Refs.LineBadge, "Text", "41") end,
 --       Reset = function(ctx) ctx:Restore() end,
 --   }
 
 export type Anomaly = {
 	Name: string,
+	Horror: boolean?, -- true: only in the dark half of the game
 	Apply: (ctx: any) -> (),
 	Reset: (ctx: any) -> (),
 }

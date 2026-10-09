@@ -17,6 +17,32 @@
         "Client": {
           "$path": "src/client"
         }
+      },
+      "$properties": {
+        "CameraMode": "LockFirstPerson",
+        "CharacterWalkSpeed": 16,
+        "EnableMouseLockOption": false
+      }
+    },
+    "Lighting": {
+      "$className": "Lighting",
+      "$properties": {
+        "Technology": "Future",
+        "ClockTime": 0,
+        "Brightness": 0,
+        "GlobalShadows": true,
+        "Ambient": [
+          0.4,
+          0.4,
+          0.42
+        ],
+        "OutdoorAmbient": [
+          0.3,
+          0.3,
+          0.3
+        ],
+        "EnvironmentDiffuseScale": 0,
+        "EnvironmentSpecularScale": 0.4
       }
     }
   }
