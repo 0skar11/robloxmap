@@ -380,12 +380,96 @@ local function showMessage(body: string, duration: number)
 	end)
 end
 
+-- Jumpscare: a face fills the screen with a red flash and a shake. Nobody dies from it.
+local function jumpscare()
+	local scare = create("Frame", gui, {
+		Name = "Jumpscare",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Color3.fromRGB(40, 0, 0),
+		BorderSizePixel = 0,
+		ZIndex = 20,
+	})
+	local face = create("Frame", scare, {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromScale(0.75, 0.95),
+		BackgroundColor3 = Color3.fromRGB(170, 175, 168),
+		BorderSizePixel = 0,
+		ZIndex = 21,
+	})
+	create("UICorner", face, { CornerRadius = UDim.new(0.45, 0) })
+	for _, x in { 0.3, 0.7 } do
+		local eye = create("Frame", face, {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(x, 0.38),
+			Size = UDim2.fromScale(0.2, 0.16),
+			BackgroundColor3 = Color3.fromRGB(10, 0, 0),
+			BorderSizePixel = 0,
+			ZIndex = 22,
+		})
+		create("UICorner", eye, { CornerRadius = UDim.new(0.5, 0) })
+		local pupil = create("Frame", eye, {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromScale(0.35, 0.45),
+			BackgroundColor3 = Color3.fromRGB(255, 30, 20),
+			BorderSizePixel = 0,
+			ZIndex = 23,
+		})
+		create("UICorner", pupil, { CornerRadius = UDim.new(0.5, 0) })
+		create("Frame", face, {
+			Position = UDim2.fromScale(x - 0.02, 0.46),
+			Size = UDim2.fromScale(0.04, 0.2),
+			BackgroundColor3 = Color3.fromRGB(105, 8, 10),
+			BorderSizePixel = 0,
+			ZIndex = 22,
+		})
+	end
+	local mouth = create("Frame", face, {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.75),
+		Size = UDim2.fromScale(0.5, 0.16),
+		BackgroundColor3 = Color3.fromRGB(20, 0, 0),
+		BorderSizePixel = 0,
+		ZIndex = 22,
+	})
+	create("UICorner", mouth, { CornerRadius = UDim.new(0.3, 0) })
+	for i = 0, 6 do
+		create("Frame", mouth, {
+			Position = UDim2.fromScale(0.04 + i * 0.135, 0),
+			Size = UDim2.fromScale(0.07, 0.35),
+			BackgroundColor3 = Color3.fromRGB(220, 215, 200),
+			BorderSizePixel = 0,
+			ZIndex = 23,
+		})
+	end
+
+	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+	local started = os.clock()
+	while os.clock() - started < 0.9 do
+		local strength = 1 - (os.clock() - started) / 0.9
+		face.Position = UDim2.new(0.5, math.random(-30, 30) * strength, 0.5, math.random(-30, 30) * strength)
+		face.Size = UDim2.fromScale(0.75 + 0.15 * (1 - strength), 0.95 + 0.15 * (1 - strength))
+		scare.BackgroundColor3 = if math.random() < 0.5 then Color3.fromRGB(120, 0, 0) else Color3.fromRGB(20, 0, 0)
+		if humanoid then
+			humanoid.CameraOffset = Vector3.new(math.random(-10, 10) / 20, math.random(-10, 10) / 20, 0) * strength
+		end
+		task.wait(0.03)
+	end
+	if humanoid then
+		humanoid.CameraOffset = Vector3.zero
+	end
+	scare:Destroy()
+end
+
 event.OnClientEvent:Connect(function(payload)
 	if payload.Kind == "Fade" then
 		local goal = if payload.Visible then 0 else 1
 		TweenService:Create(blackout, TweenInfo.new(payload.Duration or 1), { BackgroundTransparency = goal }):Play()
 	elseif payload.Kind == "Message" then
 		showMessage(payload.Text, payload.Duration or 3)
+	elseif payload.Kind == "Jumpscare" then
+		task.spawn(jumpscare)
 	end
 end)
 

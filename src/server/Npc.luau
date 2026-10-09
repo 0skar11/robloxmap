@@ -107,6 +107,8 @@ local function loadAvatar(container: Model, pose: "Stand" | "Sit", pivot: CFrame
 	seat.Anchored = true
 	seat.CanCollide = false
 	seat.Transparency = 1
+	-- Players never sit here by walking into it.
+	seat.CanTouch = false
 	seat.Parent = container
 
 	avatar:PivotTo(pivot * CFrame.new(0, 3, 0))

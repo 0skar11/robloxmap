@@ -611,6 +611,27 @@ local function buildStation(map: Folder, refs, language: string)
 		passenger.Parent = station
 	end
 
+	-- The man standing in the middle walks into the car and sits on the far bench every station
+	-- (see Walker). His seat sits on the far bench, between the doors.
+	refs.Walker = refs.Passengers[4]
+	refs.WalkerPath = {
+		at(-10, 3, 6).Position, -- to the left door
+		at(-10, 3, 13.5).Position, -- through it
+		at(4, 3, 16.5).Position, -- down the aisle
+		at(4, 3, 20.8).Position, -- in front of his seat
+	}
+	local walkerSeat = Instance.new("Seat")
+	walkerSeat.Name = "WalkerSeat"
+	walkerSeat.Size = Vector3.new(2, 0.2, 2)
+	walkerSeat.CFrame = at(4, 2.8, 22.7)
+	walkerSeat.Anchored = true
+	walkerSeat.CanCollide = false
+	-- Players never sit here by walking into it; only the walker is put on it.
+	walkerSeat.CanTouch = false
+	walkerSeat.Transparency = 1
+	walkerSeat.Parent = station
+	refs.WalkerSeat = walkerSeat
+
 	-- Hints at the twist. They only show up once the dark half begins (see GameLoop), and nobody
 	-- gets them the first time.
 	local newspaper = block(station, "Newspaper", Vector3.new(1.6, 0.05, 1.3), at(-12, 3.03, -8.2), Color3.fromRGB(225, 222, 210))

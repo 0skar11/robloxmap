@@ -137,6 +137,7 @@ return Config
 --
 -- Remotes:
 --   GameEvent    server -> client  { Kind = "Fade", Visible, Duration } | { Kind = "Message", Text, Duration }
+--                                  | { Kind = "Jumpscare" }
 --   LobbyAction  client -> server  ("SetPartySize", n) | ("SetLanguage", "ar" | "en") | ("StartNow") | ("LeaveRun")
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -368,6 +369,27 @@ return Strings
         </Properties>
         <Item class="ModuleScript" referent="9">
           <Properties>
+            <string name="Name">BloodyWalker</string>
+            <string name="Source"><![CDATA[-- The man in the middle of the platform looks horrifying: pale, soaked in blood, red eyes.
+-- He still walks into the train and sits down, as if nothing were wrong.
+local Gore = require(script.Parent.Parent.Gore)
+
+return {
+	Name = "BloodyWalker",
+	-- Scary: only in the dark half of the game.
+	Horror = true,
+	Apply = function(ctx)
+		Gore.apply(ctx, ctx.Refs.Walker)
+	end,
+	Reset = function(ctx)
+		ctx:Restore()
+	end,
+}
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="10">
+          <Properties>
             <string name="Name">ExtraMissedCall</string>
             <string name="Source"><![CDATA[-- The phone on the floor now shows 13 missed calls instead of 12.
 return {
@@ -384,7 +406,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="10">
+        <Item class="ModuleScript" referent="11">
           <Properties>
             <string name="Name">ExtraPassenger</string>
             <string name="Source"><![CDATA[-- Someone new is on the platform: a faceless figure standing with their face to the wall.
@@ -415,7 +437,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="11">
+        <Item class="ModuleScript" referent="12">
           <Properties>
             <string name="Name">FlickeringLight</string>
             <string name="Source"><![CDATA[-- One ceiling light keeps flickering.
@@ -455,7 +477,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="12">
+        <Item class="ModuleScript" referent="13">
           <Properties>
             <string name="Name">MissingDriver</string>
             <string name="Source"><![CDATA[-- The train is standing at the platform, but nobody is in the driver's seat.
@@ -471,7 +493,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="13">
+        <Item class="ModuleScript" referent="14">
           <Properties>
             <string name="Name">MissingPassenger</string>
             <string name="Source"><![CDATA[-- One of the passengers is gone.
@@ -487,7 +509,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="14">
+        <Item class="ModuleScript" referent="15">
           <Properties>
             <string name="Name">MissingPillar</string>
             <string name="Source"><![CDATA[-- One of the pillars is missing. The middle one stays: the flowers lean on it.
@@ -509,7 +531,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="15">
+        <Item class="ModuleScript" referent="16">
           <Properties>
             <string name="Name">NamedPoster</string>
             <string name="Source"><![CDATA[-- An advertisement now carries one of the players' names.
@@ -528,7 +550,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="16">
+        <Item class="ModuleScript" referent="17">
           <Properties>
             <string name="Name">StaringPassengers</string>
             <string name="Source"><![CDATA[-- Every passenger slowly turns their head to follow the nearest player.
@@ -596,7 +618,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="17">
+        <Item class="ModuleScript" referent="18">
           <Properties>
             <string name="Name">StoppedClock</string>
             <string name="Source"><![CDATA[-- The station clock is stuck on the time the train arrives and never ticks.
@@ -613,7 +635,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="18">
+        <Item class="ModuleScript" referent="19">
           <Properties>
             <string name="Name">TheFollower</string>
             <string name="Source"><![CDATA[-- A faceless figure steps out at the far end of the platform and slowly walks toward the nearest
@@ -698,7 +720,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="19">
+        <Item class="ModuleScript" referent="20">
           <Properties>
             <string name="Name">TurnedBench</string>
             <string name="Source"><![CDATA[-- The empty bench has been turned to face the wall.
@@ -721,7 +743,30 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="20">
+        <Item class="ModuleScript" referent="21">
+          <Properties>
+            <string name="Name">WalkerJumpscare</string>
+            <string name="Source"><![CDATA[-- The man in the middle looks horrifying, and a moment after the doors open he sprints at the
+-- nearest player. Reaching you is a jumpscare, not a death. Sprinting (Shift) gets you away.
+local Gore = require(script.Parent.Parent.Gore)
+
+return {
+	Name = "WalkerJumpscare",
+	-- Scary: only in the dark half of the game.
+	Horror = true,
+	Apply = function(ctx)
+		Gore.apply(ctx, ctx.Refs.Walker)
+		-- Walker (see Server/Walker) reads this when the doors open.
+		ctx:SetAttribute(ctx.Refs.Walker, "Mode", "Chase")
+	end,
+	Reset = function(ctx)
+		ctx:Restore()
+	end,
+}
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="22">
           <Properties>
             <string name="Name">WrongLineNumber</string>
             <string name="Source"><![CDATA[-- The line badge reads 41 instead of 14.
@@ -738,7 +783,7 @@ return {
           </Properties>
         </Item>
       </Item>
-      <Item class="ModuleScript" referent="21">
+      <Item class="ModuleScript" referent="23">
         <Properties>
           <string name="Name">AnomalyContext</string>
           <string name="Source"><![CDATA[-- Handed to an anomaly's Apply and Reset. Every change made through it is recorded, so
@@ -873,7 +918,7 @@ return AnomalyContext
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="22">
+      <Item class="ModuleScript" referent="24">
         <Properties>
           <string name="Name">AnomalyRegistry</string>
           <string name="Source"><![CDATA[-- Loads every ModuleScript in the Anomalies folder. To add an anomaly, drop a new module there:
@@ -924,7 +969,7 @@ return AnomalyRegistry
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="23">
+      <Item class="ModuleScript" referent="25">
         <Properties>
           <string name="Name">Build</string>
           <string name="Source"><![CDATA[-- Small helpers for building maps out of plain anchored parts.
@@ -1012,7 +1057,7 @@ return Build
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="24">
+      <Item class="ModuleScript" referent="26">
         <Properties>
           <string name="Name">GameLoop</string>
           <string name="Source"><![CDATA[-- One group's game: the train stops, the players look around, they vote on a door, the screen goes
@@ -1036,6 +1081,7 @@ local Strings = require(ReplicatedStorage.Shared.Strings)
 local AnomalyContext = require(script.Parent.AnomalyContext)
 local AnomalyRegistry = require(script.Parent.AnomalyRegistry)
 local VoteManager = require(script.Parent.VoteManager)
+local Walker = require(script.Parent.Walker)
 
 local CLOCK_START_SECONDS = 23 * 3600 + 57 * 60
 local DOOR_TWEEN = TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut)
@@ -1228,6 +1274,9 @@ function GameLoop.run(session)
 		-- The train has stopped: doors open and the players decide.
 		setDoors(refs, true)
 		publishState("Station")
+		local stopWalker = Walker.start(refs, session.GetAlive, function(player)
+			event:FireClient(player, { Kind = "Jumpscare" })
+		end)
 		local choice, byCoinFlip, outcome = VoteManager.collect(refs.Doors, members, session.GetAlive, publishVote, random)
 
 		publishState("Riding")
@@ -1235,6 +1284,8 @@ function GameLoop.run(session)
 			message(text("CoinFlip", text(if choice == "Continue" then "DoorContinue" else "DoorBack")), 2)
 		end
 		fade(true)
+		-- Back to his spot before the anomaly is undone, so its changes come off cleanly.
+		stopWalker()
 
 		if anomaly then
 			local ok, err = pcall(anomaly.Reset, ctx)
@@ -1282,7 +1333,84 @@ return GameLoop
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="25">
+      <Item class="ModuleScript" referent="27">
+        <Properties>
+          <string name="Name">Gore</string>
+          <string name="Source"><![CDATA[-- Turns a person into something horrifying, through an anomaly context so it all comes undone:
+-- corpse-pale skin, clothes soaked dark red, blood on the face and chest, and glowing red eyes.
+
+local Gore = {}
+
+local PALE = Color3.fromRGB(170, 175, 168)
+local BLOOD = Color3.fromRGB(105, 8, 10)
+local SOAKED = Color3.fromRGB(120, 35, 35)
+
+local function stain(ctx, anchor: BasePart, name: string, size: Vector3, offset: CFrame, color: Color3, neon: boolean?)
+	local part = Instance.new("Part")
+	part.Name = name
+	part.Size = size
+	part.CFrame = anchor.CFrame * offset
+	part.Color = color
+	part.Material = if neon then Enum.Material.Neon else Enum.Material.SmoothPlastic
+	part.Anchored = false
+	part.CanCollide = false
+	part.CanQuery = false
+	part.CanTouch = false
+	part.Massless = true
+	part.CastShadow = false
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0 = anchor
+	weld.Part1 = part
+	weld.Parent = part
+	ctx:Add(part, anchor)
+	if neon then
+		local glow = Instance.new("PointLight")
+		glow.Color = color
+		glow.Range = 4
+		glow.Brightness = 1.5
+		glow.Parent = part
+	end
+end
+
+function Gore.apply(ctx, model: Model)
+	local head, chest = nil, nil
+	for _, descendant in model:GetDescendants() do
+		if descendant:IsA("BasePart") and descendant.Name ~= "HumanoidRootPart" and not descendant:FindFirstAncestorOfClass("Accessory") then
+			ctx:Set(descendant, "Color", PALE)
+			if descendant.Name == "Head" then
+				head = descendant
+			elseif descendant.Name == "UpperTorso" or descendant.Name == "Torso" then
+				chest = descendant
+			end
+		elseif descendant:IsA("Shirt") or descendant:IsA("Pants") then
+			ctx:Set(descendant, "Color3", SOAKED)
+		elseif descendant:IsA("ShirtGraphic") then
+			ctx:Set(descendant, "Color3", SOAKED)
+		end
+	end
+
+	if head then
+		local front = -head.Size.Z / 2 - 0.03
+		-- Glowing eyes, and blood running down from them and the mouth.
+		for _, x in { -0.22, 0.22 } do
+			stain(ctx, head, "Eye", Vector3.new(0.16, 0.12, 0.05), CFrame.new(x * head.Size.X, 0.1 * head.Size.Y, front), Color3.fromRGB(255, 30, 20), true)
+			stain(ctx, head, "Tear", Vector3.new(0.08, 0.35, 0.04), CFrame.new(x * head.Size.X, -0.12 * head.Size.Y, front), BLOOD)
+		end
+		stain(ctx, head, "Mouth", Vector3.new(0.4, 0.1, 0.04), CFrame.new(0, -0.25 * head.Size.Y, front), BLOOD)
+		stain(ctx, head, "Drip", Vector3.new(0.1, 0.3, 0.04), CFrame.new(0.1, -0.38 * head.Size.Y, front), BLOOD)
+	end
+	if chest then
+		local front = -chest.Size.Z / 2 - 0.03
+		stain(ctx, chest, "Splatter", Vector3.new(0.8, 0.6, 0.05), CFrame.new(-0.2, 0.2, front) * CFrame.Angles(0, 0, math.rad(25)), BLOOD)
+		stain(ctx, chest, "Splatter", Vector3.new(0.4, 0.9, 0.05), CFrame.new(0.35, -0.1, front) * CFrame.Angles(0, 0, math.rad(-10)), BLOOD)
+	end
+end
+
+return Gore
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="28">
         <Properties>
           <string name="Name">Graphics</string>
           <string name="Source"><![CDATA[-- Creates the lighting effects every client uses. Each client then tweens Lighting and these
@@ -1329,7 +1457,7 @@ return Graphics
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="26">
+      <Item class="ModuleScript" referent="29">
         <Properties>
           <string name="Name">LobbyBuilder</string>
           <string name="Source"><![CDATA[-- The lobby: a bright ticket hall with a row of gates. Groups gather on a gate, and when it leaves
@@ -1510,7 +1638,7 @@ return LobbyBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="27">
+      <Item class="ModuleScript" referent="30">
         <Properties>
           <string name="Name">LobbyManager</string>
           <string name="Source"><![CDATA[-- Lobby gates. Standing on a gate joins its group; stepping off leaves it. The first player on a
@@ -1701,7 +1829,7 @@ return LobbyManager
 ]]></string>
         </Properties>
       </Item>
-      <Item class="Script" referent="28">
+      <Item class="Script" referent="31">
         <Properties>
           <string name="Name">Main</string>
           <token name="RunContext">0</token>
@@ -1734,7 +1862,7 @@ end
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="29">
+      <Item class="ModuleScript" referent="32">
         <Properties>
           <string name="Name">Mannequin</string>
           <string name="Source"><![CDATA[-- Faceless block passengers built from anchored parts, so the map needs no uploaded assets.
@@ -1820,7 +1948,7 @@ return Mannequin
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="30">
+      <Item class="ModuleScript" referent="33">
         <Properties>
           <string name="Name">MapBuilder</string>
           <string name="Source"><![CDATA[-- Builds one station in code, styled after real metro stations: a tiled platform with a tactile
@@ -2436,6 +2564,27 @@ local function buildStation(map: Folder, refs, language: string)
 		passenger.Parent = station
 	end
 
+	-- The man standing in the middle walks into the car and sits on the far bench every station
+	-- (see Walker). His seat sits on the far bench, between the doors.
+	refs.Walker = refs.Passengers[4]
+	refs.WalkerPath = {
+		at(-10, 3, 6).Position, -- to the left door
+		at(-10, 3, 13.5).Position, -- through it
+		at(4, 3, 16.5).Position, -- down the aisle
+		at(4, 3, 20.8).Position, -- in front of his seat
+	}
+	local walkerSeat = Instance.new("Seat")
+	walkerSeat.Name = "WalkerSeat"
+	walkerSeat.Size = Vector3.new(2, 0.2, 2)
+	walkerSeat.CFrame = at(4, 2.8, 22.7)
+	walkerSeat.Anchored = true
+	walkerSeat.CanCollide = false
+	-- Players never sit here by walking into it; only the walker is put on it.
+	walkerSeat.CanTouch = false
+	walkerSeat.Transparency = 1
+	walkerSeat.Parent = station
+	refs.WalkerSeat = walkerSeat
+
 	-- Hints at the twist. They only show up once the dark half begins (see GameLoop), and nobody
 	-- gets them the first time.
 	local newspaper = block(station, "Newspaper", Vector3.new(1.6, 0.05, 1.3), at(-12, 3.03, -8.2), Color3.fromRGB(225, 222, 210))
@@ -2531,7 +2680,7 @@ return MapBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="31">
+      <Item class="ModuleScript" referent="34">
         <Properties>
           <string name="Name">Npc</string>
           <string name="Source"><![CDATA[-- NPCs. Each one appears straight away as a block mannequin, then (if Config.AvatarNpcs is on)
@@ -2643,6 +2792,8 @@ local function loadAvatar(container: Model, pose: "Stand" | "Sit", pivot: CFrame
 	seat.Anchored = true
 	seat.CanCollide = false
 	seat.Transparency = 1
+	-- Players never sit here by walking into it.
+	seat.CanTouch = false
 	seat.Parent = container
 
 	avatar:PivotTo(pivot * CFrame.new(0, 3, 0))
@@ -2677,7 +2828,7 @@ return Npc
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="32">
+      <Item class="ModuleScript" referent="35">
         <Properties>
           <string name="Name">NpcOutfits</string>
           <string name="Source"><![CDATA[-- Fixed looks for the NPCs: the same people in every game and in the lobby.
@@ -2873,7 +3024,7 @@ return NpcOutfits
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="33">
+      <Item class="ModuleScript" referent="36">
         <Properties>
           <string name="Name">SessionManager</string>
           <string name="Source"><![CDATA[-- Runs one game per group, and owns spawning and death.
@@ -3239,7 +3390,7 @@ return SessionManager
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="34">
+      <Item class="ModuleScript" referent="37">
         <Properties>
           <string name="Name">VoteManager</string>
           <string name="Source"><![CDATA[-- Majority vote by standing in front of a door. Each player votes with their body: whoever is
@@ -3357,24 +3508,220 @@ return VoteManager
 ]]></string>
         </Properties>
       </Item>
+      <Item class="ModuleScript" referent="38">
+        <Properties>
+          <string name="Name">Walker</string>
+          <string name="Source"><![CDATA[-- The passenger standing in the middle of the platform. Every station, a moment after the doors
+-- open, he walks into the train and sits down: part of what "normal" looks like.
+--
+-- Anomalies can change him through attributes on his model (see Anomalies/BloodyWalker and
+-- Anomalies/WalkerJumpscare):
+--   Mode = "Walk"   (default) walk into the car and sit
+--   Mode = "Chase"  sprint at the nearest player; on reaching them, a jumpscare (nobody dies)
+--
+-- Walker.start() runs one station's behavior and returns a stop function that puts him back.
+
+local RunService = game:GetService("RunService")
+
+local WALK_ANIMATION = "rbxassetid://507777826"
+local RUN_ANIMATION = "rbxassetid://507767714"
+local SIT_ANIMATION = "rbxassetid://2506281703"
+
+local WALK_SPEED = 8
+local CHASE_SPEED = 21 -- faster than walking (16), slower than sprinting (26)
+local CHASE_SECONDS = 12
+local SCARE_DISTANCE = 3.5
+local START_DELAY = 2
+
+local Walker = {}
+
+local function bodyOf(model: Model): (BasePart?, Humanoid?)
+	local avatar = model:FindFirstChild("Avatar")
+	if not avatar then
+		return nil, nil
+	end
+	local root = avatar:FindFirstChild("HumanoidRootPart")
+	local humanoid = avatar:FindFirstChildOfClass("Humanoid")
+	if root and root:IsA("BasePart") and humanoid then
+		return root, humanoid
+	end
+	return nil, nil
+end
+
+local function nearestAlive(players: { Player }, position: Vector3): (Player?, BasePart?)
+	local bestPlayer, bestRoot, bestDistance = nil, nil, math.huge
+	for _, player in players do
+		local character = player.Character
+		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		if humanoid and humanoid.Health > 0 and root and root:IsA("BasePart") then
+			local distance = (root.Position - position).Magnitude
+			if distance < bestDistance then
+				bestPlayer, bestRoot, bestDistance = player, root, distance
+			end
+		end
+	end
+	return bestPlayer, bestRoot
+end
+
+-- onScare(player) is called when the chase reaches someone.
+function Walker.start(refs, getAlive: () -> { Player }, onScare: (Player) -> ()): () -> ()
+	local model: Model = refs.Walker
+	local mode = model:GetAttribute("Mode") or "Walk"
+	local root, humanoid = bodyOf(model)
+
+	-- An avatar moves by its (anchored) root; the block mannequin moves as a whole model.
+	local function getCFrame(): CFrame
+		return if root then root.CFrame else model:GetPivot()
+	end
+	local function setCFrame(cframe: CFrame)
+		if root then
+			root.CFrame = cframe
+		else
+			model:PivotTo(cframe)
+		end
+	end
+
+	local home = getCFrame()
+	local floorY = home.Position.Y
+	local running = true
+	local tracks: { AnimationTrack } = {}
+
+	local function play(id: string, speed: number)
+		if not humanoid then
+			return
+		end
+		local animator = humanoid:FindFirstChildOfClass("Animator") or Instance.new("Animator")
+		animator.Parent = humanoid
+		local animation = Instance.new("Animation")
+		animation.AnimationId = id
+		local ok, track = pcall(function()
+			return animator:LoadAnimation(animation)
+		end)
+		if ok and track then
+			track.Looped = true
+			track:Play(0.2)
+			track:AdjustSpeed(speed)
+			table.insert(tracks, track)
+		end
+	end
+
+	local function stopTracks()
+		for _, track in tracks do
+			track:Stop(0.2)
+		end
+		table.clear(tracks)
+	end
+
+	-- One frame's step toward a point on the floor. Returns the distance left.
+	local function stepToward(target: Vector3, speed: number, dt: number): number
+		local here = getCFrame().Position
+		local offset = Vector3.new(target.X, floorY, target.Z) - here
+		local distance = offset.Magnitude
+		if distance < 0.05 then
+			return 0
+		end
+		local direction = offset.Unit
+		local nextPosition = here + direction * math.min(distance, speed * dt)
+		setCFrame(CFrame.lookAt(nextPosition, nextPosition + direction))
+		return distance
+	end
+
+	local function walkTo(target: Vector3): boolean
+		while running do
+			local dt = RunService.Heartbeat:Wait()
+			if stepToward(target, WALK_SPEED, dt) < 0.3 then
+				return true
+			end
+		end
+		return false
+	end
+
+	local function sit()
+		local seat = refs.WalkerSeat
+		if root and humanoid and seat then
+			root.Anchored = false
+			seat:Sit(humanoid)
+			play(SIT_ANIMATION, 1)
+		end
+	end
+
+	local thread = task.spawn(function()
+		task.wait(START_DELAY)
+		if mode == "Chase" then
+			task.wait(math.random() * 2)
+			play(RUN_ANIMATION, 1.2)
+			local deadline = os.clock() + CHASE_SECONDS
+			while running and os.clock() < deadline do
+				local dt = RunService.Heartbeat:Wait()
+				local player, target = nearestAlive(getAlive(), getCFrame().Position)
+				if not player or not target then
+					break
+				end
+				if stepToward(target.Position, CHASE_SPEED, dt) <= SCARE_DISTANCE then
+					onScare(player)
+					break
+				end
+			end
+			-- He is gone after the scare; he'll be back in his spot next station.
+			stopTracks()
+			setCFrame(home)
+			return
+		end
+
+		play(WALK_ANIMATION, 0.55)
+		for _, point in refs.WalkerPath do
+			if not walkTo(point) then
+				return
+			end
+		end
+		stopTracks()
+		sit()
+	end)
+
+	return function()
+		running = false
+		if coroutine.status(thread) ~= "dead" then
+			task.cancel(thread)
+		end
+		stopTracks()
+		-- Get up from the seat and go back to his spot.
+		local weld = refs.WalkerSeat and refs.WalkerSeat:FindFirstChild("SeatWeld")
+		if weld then
+			weld:Destroy()
+		end
+		if humanoid then
+			humanoid.Sit = false
+		end
+		if root then
+			root.Anchored = true
+		end
+		setCFrame(home)
+	end
+end
+
+return Walker
+]]></string>
+        </Properties>
+      </Item>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="35">
+  <Item class="StarterPlayer" referent="39">
     <Properties>
       <string name="Name">StarterPlayer</string>
       <token name="CameraMode">0</token>
       <float name="CharacterWalkSpeed">16</float>
       <bool name="EnableMouseLockOption">false</bool>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="36">
+    <Item class="StarterPlayerScripts" referent="40">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="Folder" referent="37">
+      <Item class="Folder" referent="41">
         <Properties>
           <string name="Name">Client</string>
         </Properties>
-        <Item class="LocalScript" referent="38">
+        <Item class="LocalScript" referent="42">
           <Properties>
             <string name="Name">Camera</string>
             <string name="Source"><![CDATA[-- Camera for every situation:
@@ -3604,7 +3951,7 @@ end
 ]]></string>
           </Properties>
         </Item>
-        <Item class="LocalScript" referent="39">
+        <Item class="LocalScript" referent="43">
           <Properties>
             <string name="Name">HUD</string>
             <string name="Source"><![CDATA[-- Player HUD.
@@ -3989,12 +4336,96 @@ local function showMessage(body: string, duration: number)
 	end)
 end
 
+-- Jumpscare: a face fills the screen with a red flash and a shake. Nobody dies from it.
+local function jumpscare()
+	local scare = create("Frame", gui, {
+		Name = "Jumpscare",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Color3.fromRGB(40, 0, 0),
+		BorderSizePixel = 0,
+		ZIndex = 20,
+	})
+	local face = create("Frame", scare, {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromScale(0.75, 0.95),
+		BackgroundColor3 = Color3.fromRGB(170, 175, 168),
+		BorderSizePixel = 0,
+		ZIndex = 21,
+	})
+	create("UICorner", face, { CornerRadius = UDim.new(0.45, 0) })
+	for _, x in { 0.3, 0.7 } do
+		local eye = create("Frame", face, {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(x, 0.38),
+			Size = UDim2.fromScale(0.2, 0.16),
+			BackgroundColor3 = Color3.fromRGB(10, 0, 0),
+			BorderSizePixel = 0,
+			ZIndex = 22,
+		})
+		create("UICorner", eye, { CornerRadius = UDim.new(0.5, 0) })
+		local pupil = create("Frame", eye, {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromScale(0.35, 0.45),
+			BackgroundColor3 = Color3.fromRGB(255, 30, 20),
+			BorderSizePixel = 0,
+			ZIndex = 23,
+		})
+		create("UICorner", pupil, { CornerRadius = UDim.new(0.5, 0) })
+		create("Frame", face, {
+			Position = UDim2.fromScale(x - 0.02, 0.46),
+			Size = UDim2.fromScale(0.04, 0.2),
+			BackgroundColor3 = Color3.fromRGB(105, 8, 10),
+			BorderSizePixel = 0,
+			ZIndex = 22,
+		})
+	end
+	local mouth = create("Frame", face, {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.75),
+		Size = UDim2.fromScale(0.5, 0.16),
+		BackgroundColor3 = Color3.fromRGB(20, 0, 0),
+		BorderSizePixel = 0,
+		ZIndex = 22,
+	})
+	create("UICorner", mouth, { CornerRadius = UDim.new(0.3, 0) })
+	for i = 0, 6 do
+		create("Frame", mouth, {
+			Position = UDim2.fromScale(0.04 + i * 0.135, 0),
+			Size = UDim2.fromScale(0.07, 0.35),
+			BackgroundColor3 = Color3.fromRGB(220, 215, 200),
+			BorderSizePixel = 0,
+			ZIndex = 23,
+		})
+	end
+
+	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+	local started = os.clock()
+	while os.clock() - started < 0.9 do
+		local strength = 1 - (os.clock() - started) / 0.9
+		face.Position = UDim2.new(0.5, math.random(-30, 30) * strength, 0.5, math.random(-30, 30) * strength)
+		face.Size = UDim2.fromScale(0.75 + 0.15 * (1 - strength), 0.95 + 0.15 * (1 - strength))
+		scare.BackgroundColor3 = if math.random() < 0.5 then Color3.fromRGB(120, 0, 0) else Color3.fromRGB(20, 0, 0)
+		if humanoid then
+			humanoid.CameraOffset = Vector3.new(math.random(-10, 10) / 20, math.random(-10, 10) / 20, 0) * strength
+		end
+		task.wait(0.03)
+	end
+	if humanoid then
+		humanoid.CameraOffset = Vector3.zero
+	end
+	scare:Destroy()
+end
+
 event.OnClientEvent:Connect(function(payload)
 	if payload.Kind == "Fade" then
 		local goal = if payload.Visible then 0 else 1
 		TweenService:Create(blackout, TweenInfo.new(payload.Duration or 1), { BackgroundTransparency = goal }):Play()
 	elseif payload.Kind == "Message" then
 		showMessage(payload.Text, payload.Duration or 3)
+	elseif payload.Kind == "Jumpscare" then
+		task.spawn(jumpscare)
 	end
 end)
 
@@ -4015,7 +4446,7 @@ end)
 ]]></string>
           </Properties>
         </Item>
-        <Item class="LocalScript" referent="40">
+        <Item class="LocalScript" referent="44">
           <Properties>
             <string name="Name">Mood</string>
             <string name="Source"><![CDATA[-- Local look of the world, from the player's "Mood" attribute:
@@ -4105,7 +4536,7 @@ apply()
 ]]></string>
           </Properties>
         </Item>
-        <Item class="LocalScript" referent="41">
+        <Item class="LocalScript" referent="45">
           <Properties>
             <string name="Name">Sprint</string>
             <string name="Source"><![CDATA[-- Sprinting. PC: hold Shift. Mobile: a button on screen toggles between sprint and walk.
