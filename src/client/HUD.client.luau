@@ -8,6 +8,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Net = require(ReplicatedStorage.Shared.Net)
@@ -90,9 +91,16 @@ local stationLabel = text(gameHud, "Station", {
 	Size = UDim2.fromOffset(340, 40),
 	TextXAlignment = Enum.TextXAlignment.Right,
 })
-local ruleLabel = text(gameHud, "Rule", {
+local checkpointLabel = text(gameHud, "Checkpoint", {
 	AnchorPoint = Vector2.new(1, 0),
 	Position = UDim2.new(1, -20, 0, 144),
+	Size = UDim2.fromOffset(340, 22),
+	TextXAlignment = Enum.TextXAlignment.Right,
+	TextColor3 = GREEN,
+})
+local ruleLabel = text(gameHud, "Rule", {
+	AnchorPoint = Vector2.new(1, 0),
+	Position = UDim2.new(1, -20, 0, 170),
 	Size = UDim2.fromOffset(460, 22),
 	TextXAlignment = Enum.TextXAlignment.Right,
 	TextColor3 = Color3.fromRGB(190, 190, 195),
@@ -157,6 +165,9 @@ local startButton = button(hostControls, "Start", {
 	Size = UDim2.new(1, 0, 0, 40),
 	BackgroundColor3 = Color3.fromRGB(35, 120, 70),
 	Text = "Start now",
+	-- The camera is first person, which locks the mouse; a visible Modal button frees it so the
+	-- host can click the controls.
+	Modal = true,
 })
 
 -- ===== Messages and blackout =====
@@ -203,12 +214,16 @@ local function refresh()
 			return Strings.get(language, key, ...)
 		end
 
-		levelLabel.Text = string.format("Level %d · %s", attr("Level", 1), attr("LevelName", ""))
-		stationLabel.Text = t("HudStation", attr("Station", 0), attr("StationsPerLevel", Config.StationsPerLevel))
+		levelLabel.Text = t(if attr("Mood", "Calm") == "Horror" then "PhaseHorror" else "PhaseCalm")
+		stationLabel.Text = t("HudLevel", attr("Level", 1), attr("TotalLevels", Config.TotalLevels))
+		local checkpoint = attr("Checkpoint", 0)
+		checkpointLabel.Visible = checkpoint > 0
+		checkpointLabel.Text = t("HudCheckpoint", checkpoint)
 		ruleLabel.Text = t("Rule")
-		leaveButton.Text = t("LeaveRun")
+		leaveButton.Text = if UserInputService.TouchEnabled then t("LeaveRun") else t("LeaveRun") .. "  [L]"
 
-		votePanel.Visible = phase == "Station"
+		-- Dead players spectate instead of voting.
+		votePanel.Visible = phase == "Station" and not attr("Dead", false)
 		local continueVotes, backVotes = attr("VotesContinue", 0), attr("VotesBack", 0)
 		local voters, countdown = attr("Voters", 0), attr("VoteCountdown", -1)
 		continueLabel.Text = t("VoteContinue", continueVotes)
@@ -283,6 +298,8 @@ leaveButton.Activated:Connect(function()
 	lobbyAction:FireServer("LeaveRun")
 end)
 
+
+
 -- ===== Server moments =====
 
 local messageToken = 0
@@ -304,5 +321,20 @@ event.OnClientEvent:Connect(function(payload)
 		TweenService:Create(blackout, TweenInfo.new(payload.Duration or 1), { BackgroundTransparency = goal }):Play()
 	elseif payload.Kind == "Message" then
 		showMessage(payload.Text, payload.Duration or 3)
+	end
+end)
+
+-- First person locks the mouse on PC, so leaving also works from the keyboard: press L twice.
+local leaveArmedUntil = 0
+UserInputService.InputBegan:Connect(function(input, processed)
+	if processed or input.KeyCode ~= Enum.KeyCode.L or attr("Phase", "Lobby") == "Lobby" then
+		return
+	end
+	if os.clock() < leaveArmedUntil then
+		leaveArmedUntil = 0
+		lobbyAction:FireServer("LeaveRun")
+	else
+		leaveArmedUntil = os.clock() + 2
+		showMessage(Strings.get(attr("Language", "en"), "LeaveConfirm"), 2)
 	end
 end)

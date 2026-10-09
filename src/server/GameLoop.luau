@@ -1,8 +1,12 @@
--- One group's station loop: the train stops, the players look around, they vote on a door, the
--- screen goes dark, and the same station comes back with the counter moved on (or reset).
+-- One group's game: the train stops, the players look around, they vote on a door, the screen goes
+-- dark, and the same station comes back one level further (or not).
 --
 -- Rule: a normal station means "Continue"; a station with something wrong means "Back".
--- A right call moves the counter up; a wrong one sends the group to the start of the level.
+--   Right call  -> next level.
+--   Wrong call  -> back to the level after the last checkpoint (level 1 before any checkpoint).
+--   Everyone dead -> everyone respawns at level 1.
+-- Levels 1-5 are the bright, calm station; from Config.HorrorStartsAtLevel the lights die and the
+-- hints appear.
 --
 -- run() returns when the group is gone or has reached the end; SessionManager cleans up.
 
@@ -18,6 +22,7 @@ local VoteManager = require(script.Parent.VoteManager)
 
 local CLOCK_START_SECONDS = 23 * 3600 + 57 * 60
 local DOOR_TWEEN = TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut)
+local DEAD_LIGHT = Color3.fromRGB(60, 60, 58)
 
 local GameLoop = {}
 
@@ -27,15 +32,26 @@ local function setDoors(refs, open: boolean)
 	end
 end
 
-local function applyLevelMood(refs, level: number)
-	local mood = Config.Levels[level]
+local function moodOf(level: number): "Calm" | "Horror"
+	return if level >= Config.HorrorStartsAtLevel then "Horror" else "Calm"
+end
+
+-- Calm: every light on and no hints. Horror: some lights die and the hints appear.
+local function applyMood(refs, mood: "Calm" | "Horror")
+	local look = Config.Moods[mood]
 	for _, fixture in refs.Lights do
-		fixture.Color = mood.LightColor
+		local on = mood == "Calm" or not fixture:GetAttribute("DiesInHorror")
+		fixture.Material = if on then Enum.Material.Neon else Enum.Material.SmoothPlastic
+		fixture.Color = if on then look.LightColor else DEAD_LIGHT
 		local light = fixture:FindFirstChildOfClass("SurfaceLight")
 		if light then
-			light.Color = mood.LightColor
-			light.Brightness = mood.LightBrightness
+			light.Enabled = on
+			light.Color = look.LightColor
+			light.Brightness = look.LightBrightness
 		end
+	end
+	for _, hint in refs.Hints do
+		hint.Parent = if mood == "Horror" then refs.Station else nil
 	end
 end
 
@@ -60,8 +76,8 @@ function GameLoop.run(session)
 	local random = Random.new()
 
 	local level = 1
-	local station = 0
-	local enteringLevel = true
+	local checkpoint = 0
+	local mood = moodOf(level)
 	local lastAnomaly = nil
 	local stationStartedAt = os.clock()
 
@@ -81,11 +97,11 @@ function GameLoop.run(session)
 
 	local function publishState(phase: string)
 		setAll("Phase", phase)
+		setAll("Mood", mood)
 		setAll("Level", level)
-		setAll("LevelName", Config.Levels[level].Name)
-		setAll("Station", station)
-		setAll("StationsPerLevel", Config.StationsPerLevel)
-		refs.CounterLabel.Text = text("Counter", level, station, Config.StationsPerLevel)
+		setAll("TotalLevels", Config.TotalLevels)
+		setAll("Checkpoint", checkpoint)
+		refs.CounterLabel.Text = text("Counter", level, Config.TotalLevels)
 	end
 
 	local function publishVote(continueVotes: number, backVotes: number, voters: number, countdown: number, tie: boolean)
@@ -112,27 +128,30 @@ function GameLoop.run(session)
 	end
 
 	local function boardTrain()
-		for i, player in members() do
-			local character = player.Character
-			if character and character:FindFirstChild("HumanoidRootPart") then
-				character:PivotTo(refs.StandPoints[(i - 1) % #refs.StandPoints + 1])
-			end
+		for i, player in session.GetAlive() do
+			player.Character:PivotTo(refs.StandPoints[(i - 1) % #refs.StandPoints + 1])
 		end
 	end
 
 	local function pickAnomaly()
-		if (enteringLevel and Config.FirstStationOfLevelIsNormal) or #anomalies == 0 then
+		if table.find(Config.AlwaysNormalLevels, level) or #anomalies == 0 then
+			return nil
+		end
+		if mood == "Calm" and not Config.CalmAnomalies then
 			return nil
 		end
 		if random:NextNumber() >= Config.AnomalyChance then
 			return nil
 		end
-		-- Never the same anomaly twice in a row.
+		-- Calm levels only use the mild anomalies. Never the same one twice in a row.
 		local pool = {}
 		for _, anomaly in anomalies do
-			if anomaly ~= lastAnomaly or #anomalies == 1 then
+			if (mood == "Horror" or not anomaly.Horror) and anomaly ~= lastAnomaly then
 				table.insert(pool, anomaly)
 			end
+		end
+		if #pool == 0 then
+			return nil
 		end
 		return pool[random:NextInteger(1, #pool)]
 	end
@@ -140,7 +159,7 @@ function GameLoop.run(session)
 	runClock(refs, function()
 		return stationStartedAt
 	end)
-	applyLevelMood(refs, level)
+	applyMood(refs, mood)
 	publishState("Riding")
 	publishVote(0, 0, 0, -1, false)
 	-- The lobby fades to black before the group appears in the train.
@@ -150,6 +169,12 @@ function GameLoop.run(session)
 
 	while #members() > 0 do
 		-- Set up the next station while the screen is dark.
+		local newMood = moodOf(level)
+		if newMood ~= mood then
+			mood = newMood
+			applyMood(refs, mood)
+		end
+
 		local anomaly = pickAnomaly()
 		local ctx = AnomalyContext.new(refs, members(), random)
 		if anomaly then
@@ -161,9 +186,8 @@ function GameLoop.run(session)
 			end
 		end
 		lastAnomaly = anomaly or lastAnomaly
-		enteringLevel = false
 		if Config.Debug then
-			print("[EndlessSubway] session", session.Slot, "level", level, "station", station, "anomaly:", anomaly and anomaly.Name or "none")
+			print("[EndlessSubway] session", session.Slot, "level", level, "anomaly:", anomaly and anomaly.Name or "none")
 		end
 
 		setDoors(refs, false)
@@ -175,7 +199,7 @@ function GameLoop.run(session)
 		-- The train has stopped: doors open and the players decide.
 		setDoors(refs, true)
 		publishState("Station")
-		local choice, byCoinFlip = VoteManager.collect(refs.Doors, members, publishVote, random)
+		local choice, byCoinFlip, outcome = VoteManager.collect(refs.Doors, members, session.GetAlive, publishVote, random)
 
 		publishState("Riding")
 		if byCoinFlip then
@@ -192,30 +216,32 @@ function GameLoop.run(session)
 		-- Restore is idempotent, so this also covers anomalies whose Reset forgot to call it.
 		ctx:Restore()
 
-		if choice == nil then
-			-- Everyone left.
+		if outcome == "Left" then
 			return
 		end
 
-		local correct = (choice == "Continue") == (anomaly == nil)
-		if correct then
-			station += 1
-			if station >= Config.StationsPerLevel then
-				station = 0
-				enteringLevel = true
-				if level < #Config.Levels then
-					level += 1
-					message(text("LevelUp", level, Config.Levels[level].Name), 3)
-					applyLevelMood(refs, level)
-				else
-					message(text("Ending"), 4)
-					task.wait(4)
-					return
-				end
+		if outcome == "Wiped" then
+			-- The whole group died: everyone comes back, from the very beginning.
+			level, checkpoint = 1, 0
+			message(text("Wiped"), 3)
+			session.Revive()
+		elseif (choice == "Continue") == (anomaly == nil) then
+			if table.find(Config.Checkpoints, level) then
+				checkpoint = level
+				message(text("CheckpointReached", checkpoint + 1), 4)
+			end
+			level += 1
+			if level > Config.TotalLevels then
+				message(text("Ending"), 4)
+				task.wait(4)
+				return
+			end
+			if level == Config.HorrorStartsAtLevel then
+				task.delay(2, message, text("HorrorBegins"), 3)
 			end
 		else
-			station = 0
-			message(text("Wrong"), 3)
+			level = checkpoint + 1
+			message(text("Wrong", level), 3)
 		end
 
 		publishState("Riding")

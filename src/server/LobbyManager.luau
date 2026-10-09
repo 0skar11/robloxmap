@@ -148,7 +148,7 @@ function LobbyManager.start(lobby)
 					end
 
 					if pad.CountdownEnd and now >= pad.CountdownEnd then
-						SessionManager.start(table.clone(pad.Members), pad.Language)
+						SessionManager.launch(table.clone(pad.Members), pad.Language)
 						resetPad(pad)
 					end
 				end

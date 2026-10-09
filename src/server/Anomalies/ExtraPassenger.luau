@@ -11,6 +11,8 @@ local SPOTS = {
 
 return {
 	Name = "ExtraPassenger",
+	-- Scary: only in the dark half of the game.
+	Horror = true,
 	Apply = function(ctx)
 		local spot = ctx:Pick(SPOTS)
 		-- Facing -Z means facing the back wall.

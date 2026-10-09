@@ -1,4 +1,4 @@
--- The lobby: a dim ticket hall with a row of gates. Groups gather on a gate, and when it leaves
+-- The lobby: a bright ticket hall with a row of gates. Groups gather on a gate, and when it leaves
 -- they get their own station. The lobby itself is always in English.
 --
 -- Layout (studs, relative to LOBBY_ORIGIN): floor X -60..60, Z -40..40, gates along Z = -28.
@@ -15,12 +15,12 @@ local LOBBY_ORIGIN = CFrame.new(0, 10, 0)
 local GATE_SPACING = 18
 
 local COLORS = {
-	Floor = Color3.fromRGB(60, 58, 56),
-	Wall = Color3.fromRGB(120, 116, 104),
-	Ceiling = Color3.fromRGB(35, 35, 38),
+	Floor = Color3.fromRGB(150, 146, 138),
+	Wall = Color3.fromRGB(225, 220, 205),
+	Ceiling = Color3.fromRGB(200, 198, 192),
 	Frame = Color3.fromRGB(40, 40, 44),
 	Yellow = Color3.fromRGB(230, 185, 25),
-	Light = Color3.fromRGB(255, 232, 195),
+	Light = Color3.fromRGB(255, 248, 235),
 }
 
 local LobbyBuilder = {}
@@ -29,7 +29,7 @@ local function at(x: number, y: number, z: number): CFrame
 	return LOBBY_ORIGIN * CFrame.new(x, y, z)
 end
 
-local function clearDefaultPlace()
+function LobbyBuilder.clearDefaultPlace()
 	-- A fresh "Baseplate" place ships a baseplate and a spawn; players must spawn in the lobby.
 	local baseplate = Workspace:FindFirstChild("Baseplate")
 	if baseplate and baseplate:IsA("BasePart") then
@@ -51,9 +51,9 @@ local function buildHall(lobby: Folder)
 	block(lobby, "WallEast", Vector3.new(1, 22, 80), at(60.5, 10, 0), COLORS.Wall, Enum.Material.CeramicTiles)
 	block(lobby, "FloorLine", Vector3.new(120, 0.05, 1), at(0, 0.03, -18), COLORS.Yellow)
 
-	for x = -45, 45, 30 do
-		for z = -15, 25, 20 do
-			Build.ceilingLight(lobby, "Light", Vector3.new(10, 0.2, 1.2), at(x, 19.9, z), COLORS.Light, 1.1, 22)
+	for x = -45, 45, 18 do
+		for z = -30, 30, 15 do
+			Build.ceilingLight(lobby, "Light", Vector3.new(10, 0.2, 1.2), at(x, 19.9, z), COLORS.Light, 2.2, 28)
 		end
 	end
 
@@ -110,7 +110,7 @@ end
 
 -- Builds the lobby into Workspace.Lobby. Returns the gates and the spawn point.
 function LobbyBuilder.build()
-	clearDefaultPlace()
+	LobbyBuilder.clearDefaultPlace()
 
 	local existing = Workspace:FindFirstChild("Lobby")
 	if existing then

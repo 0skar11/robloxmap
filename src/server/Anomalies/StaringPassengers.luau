@@ -20,6 +20,8 @@ end
 
 return {
 	Name = "StaringPassengers",
+	-- Scary: only in the dark half of the game.
+	Horror = true,
 	Apply = function(ctx)
 		-- Avatars turn their neck joint; block mannequins turn the head part itself.
 		local necks, heads = {}, {}

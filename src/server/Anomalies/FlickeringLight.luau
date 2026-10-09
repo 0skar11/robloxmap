@@ -1,8 +1,18 @@
 -- One ceiling light keeps flickering.
 return {
 	Name = "FlickeringLight",
+	-- Scary: only in the dark half of the game.
+	Horror = true,
 	Apply = function(ctx)
-		local fixture = ctx:Pick(ctx.Refs.Lights)
+		-- Only a light that is still working can flicker.
+		local working = {}
+		for _, candidate in ctx.Refs.Lights do
+			local surfaceLight = candidate:FindFirstChildOfClass("SurfaceLight")
+			if surfaceLight and surfaceLight.Enabled then
+				table.insert(working, candidate)
+			end
+		end
+		local fixture = ctx:Pick(working)
 		local light = fixture:FindFirstChildOfClass("SurfaceLight")
 
 		-- Record the originals first so Restore turns the light back on.

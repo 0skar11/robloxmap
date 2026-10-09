@@ -3,9 +3,9 @@
     <Properties>
       <string name="Name">Lighting</string>
       <Color3 name="Ambient">
-        <R>0.055</R>
-        <G>0.055</G>
-        <B>0.07</B>
+        <R>0.4</R>
+        <G>0.4</G>
+        <B>0.42</B>
       </Color3>
       <float name="Brightness">0</float>
       <float name="ClockTime">0</float>
@@ -13,9 +13,9 @@
       <float name="EnvironmentSpecularScale">0.4</float>
       <bool name="GlobalShadows">true</bool>
       <Color3 name="OutdoorAmbient">
-        <R>0</R>
-        <G>0</G>
-        <B>0</B>
+        <R>0.3</R>
+        <G>0.3</G>
+        <B>0.3</B>
       </Color3>
       <token name="Technology">4</token>
     </Properties>
@@ -35,14 +35,23 @@
 
 local Config = {}
 
--- Five correct stations in a row clear a level.
-Config.StationsPerLevel = 5
+-- Levels. Each level is one stop of the train.
+--   Levels 1-5: a normal, bright station with small spot-the-difference changes.
+--   Level 5 is a checkpoint: a mistake after it sends the group back to level 6, not level 1.
+--   Level 6 on: the lights die, the hints appear, and the strange things start.
+Config.TotalLevels = 15
+Config.Checkpoints = { 5 }
+Config.HorrorStartsAtLevel = 6
 
--- Chance that a station (after the first one of a level) carries an anomaly.
+-- These levels never have an anomaly, so players can learn what "normal" looks like
+-- (once in the bright station, once in the dark one).
+Config.AlwaysNormalLevels = { 1, 6 }
+
+-- Chance that any other level carries an anomaly.
 Config.AnomalyChance = 0.6
 
--- The first station of every level is always normal, so players can learn the baseline.
-Config.FirstStationOfLevelIsNormal = true
+-- Bright levels use only the mild anomalies. Set false to make levels 1-5 never change at all.
+Config.CalmAnomalies = true
 
 -- Once every player stands at a door and there is a clear majority, this countdown starts.
 Config.VoteConfirmSeconds = 3
@@ -57,36 +66,40 @@ Config.BlackoutSeconds = 2
 -- Prints the active anomaly to the server output. Handy while testing, spoils the game otherwise.
 Config.Debug = false
 
--- Lobby: groups of 1 to 10 players gather on a pad, then get their own copy of the station.
+-- Lobby: groups of 1 to 10 players gather on a gate, then go play together.
 Config.MinPartySize = 1
 Config.MaxPartySize = 10
 Config.DefaultPartySize = 4
 Config.LobbyPads = 6
 Config.LobbyCountdownSeconds = 5
 
--- Each group's station is built this far from the previous one along X.
+-- In the live game, the lobby and every group's game run in separate servers: a gate teleports
+-- its group to a private server of this same place. Roblox Studio cannot teleport, so there
+-- everything runs in one server (each group still gets its own station copy).
+Config.UseSeparateServers = true
+
+-- How long a game server waits for the whole group to arrive before starting anyway.
+Config.GroupArrivalTimeout = 20
+
+-- Each local group's station is built this far from the previous one along X.
 Config.StationSpacing = 1000
 
 -- Passengers wear random real Roblox avatars. Set false to use the plain block mannequins.
 Config.RandomAvatarNpcs = true
 
--- Per-level mood of the station lights. Levels 2 and 3 only change the lights for now
--- (build step 3 adds their own scenes).
-Config.Levels = {
-	{
-		Name = "The Last Train",
-		LightColor = Color3.fromRGB(255, 226, 180),
-		LightBrightness = 0.9,
+-- Movement. PC: hold Shift to sprint. Mobile: a button on screen toggles sprint.
+Config.WalkSpeed = 16
+Config.SprintSpeed = 26
+
+-- Station lights for the two halves of the game.
+Config.Moods = {
+	Calm = {
+		LightColor = Color3.fromRGB(255, 246, 228),
+		LightBrightness = 1.8,
 	},
-	{
-		Name = "Fractured",
-		LightColor = Color3.fromRGB(255, 180, 140),
-		LightBrightness = 0.6,
-	},
-	{
-		Name = "Acceptance",
-		LightColor = Color3.fromRGB(170, 195, 255),
-		LightBrightness = 0.4,
+	Horror = {
+		LightColor = Color3.fromRGB(255, 205, 160),
+		LightBrightness = 0.8,
 	},
 }
 
@@ -102,19 +115,23 @@ return Config
 --
 -- Player attributes:
 --   Phase            "Lobby" | "Riding" (screen dark, between stations) | "Station" (doors open)
---   Level, LevelName, Station, StationsPerLevel
+--   Mood             "Lobby" | "Calm" (levels 1-5, bright) | "Horror" (dark) - drives the local look
+--   Language         "ar" | "en" for the player's session ("en" in the lobby)
+--   Level, TotalLevels, Checkpoint (0 = none yet)
+--   Dead             true while spectating after dying mid-game
+--   SessionKey       same value for everyone in one group (spectators find teammates by it)
 --   VotesContinue, VotesBack, Voters
 --   VoteCountdown    seconds before the vote locks in, -1 when no countdown is running
 --   VoteTie          true when everyone voted and the doors are tied
---   Pad              lobby pad the player stands on and belongs to (0 = none)
---   PadHost          true for the player who picks the group size
---   PadCount, PadMax members on the pad and the chosen group size
+--   Pad              lobby gate the player stands on and belongs to (0 = none)
+--   PadHost          true for the player who picks the group size and language
+--   PadCount, PadMax, PadLanguage   members on the gate, chosen group size and language
 --   PadCountdown     seconds before the group leaves, -1 when not counting down
---   PadFull          standing on a pad that is already full
+--   PadFull          standing on a gate that is already full
 --
 -- Remotes:
 --   GameEvent    server -> client  { Kind = "Fade", Visible, Duration } | { Kind = "Message", Text, Duration }
---   LobbyAction  client -> server  ("SetPartySize", n) | ("StartNow") | ("LeaveRun")
+--   LobbyAction  client -> server  ("SetPartySize", n) | ("SetLanguage", "ar" | "en") | ("StartNow") | ("LeaveRun")
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -172,7 +189,7 @@ local TEXT: { [string]: { [string]: any } } = {
 		StationName = "Al-Nour Station",
 		DoorContinue = "CONTINUE",
 		DoorBack = "GO BACK",
-		Counter = "Level %d\nStation %d / %d",
+		Counter = "LEVEL\n%d / %d",
 		Newspaper = "METRO DAILY\n%s",
 		MissedCalls = "%d missed calls",
 		Vending = "DRINKS",
@@ -190,7 +207,12 @@ local TEXT: { [string]: { [string]: any } } = {
 
 		-- HUD
 		Rule = "Normal station -> CONTINUE.  Something wrong -> GO BACK.",
-		HudStation = "Station %d / %d",
+		PhaseCalm = "The Last Train",
+		PhaseHorror = "Something Is Wrong",
+		HudLevel = "Level %d / %d",
+		HudCheckpoint = "Checkpoint: Level %d",
+		Sprint = "Sprint",
+		Walk = "Walk",
 		VoteContinue = "Continue: %d",
 		VoteBack = "Go back: %d",
 		VoteTie = "Tie! You need a majority",
@@ -198,11 +220,16 @@ local TEXT: { [string]: { [string]: any } } = {
 		VoteStandAtDoor = "Stand in front of the door you choose",
 		VoteWaiting = "Waiting for the others (%d / %d)",
 		LeaveRun = "Back to lobby",
+		LeaveConfirm = "Press L again to go back to the lobby",
 
 		-- Messages
 		CoinFlip = "Tie... a coin flip chose \"%s\"",
-		Wrong = "Wrong... back to the start of the level",
-		LevelUp = "Level %d - %s",
+		Wrong = "Wrong... back to Level %d",
+		CheckpointReached = "CHECKPOINT! Mistakes now send you back to Level %d",
+		HorrorBegins = "The lights are going out... something is wrong",
+		Wiped = "Everyone is dead... back to Level 1",
+		Spectating = "You died. Watching %s",
+		SpectateHint = "Waiting until the whole group is gone",
 		Ending = "You reached the end... (the final scene is still being built)",
 	},
 
@@ -210,7 +237,7 @@ local TEXT: { [string]: { [string]: any } } = {
 		StationName = "محطة النور",
 		DoorContinue = "كمّل",
 		DoorBack = "ارجع",
-		Counter = "Level %d\nالمحطة %d / %d",
+		Counter = "LEVEL\n%d / %d",
 		Newspaper = "جريدة المترو\n%s",
 		MissedCalls = "%d مكالمة فايتة",
 		Vending = "مشروبات",
@@ -227,7 +254,12 @@ local TEXT: { [string]: { [string]: any } } = {
 		Months = { "يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر" },
 
 		Rule = "المحطة طبيعية ← كمّل.  فيها حاجة غلط ← ارجع.",
-		HudStation = "المحطة %d / %d",
+		PhaseCalm = "آخر قطر",
+		PhaseHorror = "فيه حاجة غلط",
+		HudLevel = "Level %d / %d",
+		HudCheckpoint = "نقطة الحفظ: Level %d",
+		Sprint = "جري",
+		Walk = "مشي",
 		VoteContinue = "كمّل: %d",
 		VoteBack = "ارجع: %d",
 		VoteTie = "تعادل! لازم أغلبية",
@@ -235,10 +267,15 @@ local TEXT: { [string]: { [string]: any } } = {
 		VoteStandAtDoor = "اقف قدام الباب اللي تختاره",
 		VoteWaiting = "مستنيين الباقيين (%d / %d)",
 		LeaveRun = "ارجع للوبي",
+		LeaveConfirm = "دوس L تاني عشان ترجع للوبي",
 
 		CoinFlip = "تعادل… القرعة اختارت \"%s\"",
-		Wrong = "غلط… رجعتوا لأول الـ Level",
-		LevelUp = "Level %d — %s",
+		Wrong = "غلط… رجعتوا لـ Level %d",
+		CheckpointReached = "Checkpoint! لو غلطتوا من هنا هترجعوا لـ Level %d",
+		HorrorBegins = "النور بيطفي… فيه حاجة غلط",
+		Wiped = "كلكم متّوا… رجعتوا لـ Level 1",
+		Spectating = "انت مت. بتتفرج على %s",
+		SpectateHint = "مستني لحد ما المجموعة كلها تموت",
 		Ending = "وصلتوا للنهاية… (المشهد الأخير لسه بيتبني)",
 	},
 }
@@ -297,6 +334,8 @@ return Strings
             <string name="Source"><![CDATA[-- The phone on the floor now shows 13 missed calls instead of 12.
 return {
 	Name = "ExtraMissedCall",
+	-- Scary: only in the dark half of the game.
+	Horror = true,
 	Apply = function(ctx)
 		ctx:Set(ctx.Refs.PhoneLabel, "Text", ctx:Text("MissedCalls", 13))
 	end,
@@ -323,6 +362,8 @@ local SPOTS = {
 
 return {
 	Name = "ExtraPassenger",
+	-- Scary: only in the dark half of the game.
+	Horror = true,
 	Apply = function(ctx)
 		local spot = ctx:Pick(SPOTS)
 		-- Facing -Z means facing the back wall.
@@ -342,8 +383,18 @@ return {
             <string name="Source"><![CDATA[-- One ceiling light keeps flickering.
 return {
 	Name = "FlickeringLight",
+	-- Scary: only in the dark half of the game.
+	Horror = true,
 	Apply = function(ctx)
-		local fixture = ctx:Pick(ctx.Refs.Lights)
+		-- Only a light that is still working can flicker.
+		local working = {}
+		for _, candidate in ctx.Refs.Lights do
+			local surfaceLight = candidate:FindFirstChildOfClass("SurfaceLight")
+			if surfaceLight and surfaceLight.Enabled then
+				table.insert(working, candidate)
+			end
+		end
+		local fixture = ctx:Pick(working)
 		local light = fixture:FindFirstChildOfClass("SurfaceLight")
 
 		-- Record the originals first so Restore turns the light back on.
@@ -422,6 +473,8 @@ return {
             <string name="Source"><![CDATA[-- An advertisement now carries one of the players' names.
 return {
 	Name = "NamedPoster",
+	-- Scary: only in the dark half of the game.
+	Horror = true,
 	Apply = function(ctx)
 		local name = if #ctx.Players > 0 then ctx:Pick(ctx.Players).DisplayName else "???"
 		ctx:Set(ctx:Pick(ctx.Refs.Posters), "Text", ctx:Text("NamedPoster", name))
@@ -458,6 +511,8 @@ end
 
 return {
 	Name = "StaringPassengers",
+	-- Scary: only in the dark half of the game.
+	Horror = true,
 	Apply = function(ctx)
 		-- Avatars turn their neck joint; block mannequins turn the head part itself.
 		local necks, heads = {}, {}
@@ -518,6 +573,91 @@ return {
         </Item>
         <Item class="ModuleScript" referent="17">
           <Properties>
+            <string name="Name">TheFollower</string>
+            <string name="Source"><![CDATA[-- A faceless figure steps out at the far end of the platform and slowly walks toward the nearest
+-- living player. If it reaches you, you die (and spectate until your group is gone). It is slower
+-- than walking, so you can always get away; the safe answer is to GO BACK.
+local RunService = game:GetService("RunService")
+
+local Mannequin = require(script.Parent.Parent.Mannequin)
+
+local SPEED = 7
+local REACH = 3
+local SPOTS = { -88, 88 }
+
+local function nearestRoot(players: { Player }, position: Vector3): BasePart?
+	local best, bestDistance = nil, math.huge
+	for _, player in players do
+		local character = player.Character
+		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		if humanoid and humanoid.Health > 0 and root and root:IsA("BasePart") then
+			local distance = (root.Position - position).Magnitude
+			if distance < bestDistance then
+				best, bestDistance = root, distance
+			end
+		end
+	end
+	return best
+end
+
+return {
+	Name = "TheFollower",
+	-- Scary: only in the dark half of the game.
+	Horror = true,
+	Apply = function(ctx)
+		local x = ctx:Pick(SPOTS)
+		local start = ctx.Refs.At(x, 3, 0)
+		local follower = Mannequin.create("Follower", "Stand", start, Color3.fromRGB(12, 12, 14)) :: Model
+		for _, part in follower:GetDescendants() do
+			if part:IsA("BasePart") then
+				part.CanCollide = false
+			end
+		end
+		ctx:Add(follower)
+
+		-- Stays on the platform floor (Y fixed, Z clamped to the platform).
+		local floorY = start.Position.Y
+		local minZ = ctx.Refs.At(0, 0, -8).Position.Z
+		local maxZ = ctx.Refs.At(0, 0, 9).Position.Z
+
+		-- Waits a few seconds before it starts walking, so players can see it first.
+		local wakeAt = os.clock() + 4
+		ctx:Connect(RunService.Heartbeat, function(dt: number)
+			if os.clock() < wakeAt then
+				return
+			end
+			local here = follower:GetPivot().Position
+			local target = nearestRoot(ctx.Players, here)
+			if not target then
+				return
+			end
+
+			local flat = Vector3.new(target.Position.X, floorY, target.Position.Z)
+			local offset = flat - here
+			if offset.Magnitude <= REACH then
+				local humanoid = target.Parent and target.Parent:FindFirstChildOfClass("Humanoid")
+				if humanoid then
+					humanoid.Health = 0
+				end
+				return
+			end
+
+			local step = offset.Unit * math.min(offset.Magnitude, SPEED * dt)
+			local nextPosition = here + step
+			nextPosition = Vector3.new(nextPosition.X, floorY, math.clamp(nextPosition.Z, minZ, maxZ))
+			follower:PivotTo(CFrame.lookAt(nextPosition, Vector3.new(flat.X, floorY, flat.Z)))
+		end)
+	end,
+	Reset = function(ctx)
+		ctx:Restore()
+	end,
+}
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="18">
+          <Properties>
             <string name="Name">TurnedBench</string>
             <string name="Source"><![CDATA[-- The empty bench has been turned to face the wall.
 return {
@@ -539,7 +679,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="18">
+        <Item class="ModuleScript" referent="19">
           <Properties>
             <string name="Name">WrongLineNumber</string>
             <string name="Source"><![CDATA[-- The line badge reads 41 instead of 14.
@@ -556,7 +696,7 @@ return {
           </Properties>
         </Item>
       </Item>
-      <Item class="ModuleScript" referent="19">
+      <Item class="ModuleScript" referent="20">
         <Properties>
           <string name="Name">AnomalyContext</string>
           <string name="Source"><![CDATA[-- Handed to an anomaly's Apply and Reset. Every change made through it is recorded, so
@@ -675,19 +815,21 @@ return AnomalyContext
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="20">
+      <Item class="ModuleScript" referent="21">
         <Properties>
           <string name="Name">AnomalyRegistry</string>
           <string name="Source"><![CDATA[-- Loads every ModuleScript in the Anomalies folder. To add an anomaly, drop a new module there:
 --
 --   return {
 --       Name = "MyAnomaly",
+--       Horror = true,  -- optional: only from Config.HorrorStartsAtLevel on
 --       Apply = function(ctx) ctx:Set(ctx.Refs.LineBadge, "Text", "41") end,
 --       Reset = function(ctx) ctx:Restore() end,
 --   }
 
 export type Anomaly = {
 	Name: string,
+	Horror: boolean?, -- true: only in the dark half of the game
 	Apply: (ctx: any) -> (),
 	Reset: (ctx: any) -> (),
 }
@@ -724,7 +866,7 @@ return AnomalyRegistry
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="21">
+      <Item class="ModuleScript" referent="22">
         <Properties>
           <string name="Name">Build</string>
           <string name="Source"><![CDATA[-- Small helpers for building maps out of plain anchored parts.
@@ -812,14 +954,18 @@ return Build
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="22">
+      <Item class="ModuleScript" referent="23">
         <Properties>
           <string name="Name">GameLoop</string>
-          <string name="Source"><![CDATA[-- One group's station loop: the train stops, the players look around, they vote on a door, the
--- screen goes dark, and the same station comes back with the counter moved on (or reset).
+          <string name="Source"><![CDATA[-- One group's game: the train stops, the players look around, they vote on a door, the screen goes
+-- dark, and the same station comes back one level further (or not).
 --
 -- Rule: a normal station means "Continue"; a station with something wrong means "Back".
--- A right call moves the counter up; a wrong one sends the group to the start of the level.
+--   Right call  -> next level.
+--   Wrong call  -> back to the level after the last checkpoint (level 1 before any checkpoint).
+--   Everyone dead -> everyone respawns at level 1.
+-- Levels 1-5 are the bright, calm station; from Config.HorrorStartsAtLevel the lights die and the
+-- hints appear.
 --
 -- run() returns when the group is gone or has reached the end; SessionManager cleans up.
 
@@ -835,6 +981,7 @@ local VoteManager = require(script.Parent.VoteManager)
 
 local CLOCK_START_SECONDS = 23 * 3600 + 57 * 60
 local DOOR_TWEEN = TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut)
+local DEAD_LIGHT = Color3.fromRGB(60, 60, 58)
 
 local GameLoop = {}
 
@@ -844,15 +991,26 @@ local function setDoors(refs, open: boolean)
 	end
 end
 
-local function applyLevelMood(refs, level: number)
-	local mood = Config.Levels[level]
+local function moodOf(level: number): "Calm" | "Horror"
+	return if level >= Config.HorrorStartsAtLevel then "Horror" else "Calm"
+end
+
+-- Calm: every light on and no hints. Horror: some lights die and the hints appear.
+local function applyMood(refs, mood: "Calm" | "Horror")
+	local look = Config.Moods[mood]
 	for _, fixture in refs.Lights do
-		fixture.Color = mood.LightColor
+		local on = mood == "Calm" or not fixture:GetAttribute("DiesInHorror")
+		fixture.Material = if on then Enum.Material.Neon else Enum.Material.SmoothPlastic
+		fixture.Color = if on then look.LightColor else DEAD_LIGHT
 		local light = fixture:FindFirstChildOfClass("SurfaceLight")
 		if light then
-			light.Color = mood.LightColor
-			light.Brightness = mood.LightBrightness
+			light.Enabled = on
+			light.Color = look.LightColor
+			light.Brightness = look.LightBrightness
 		end
+	end
+	for _, hint in refs.Hints do
+		hint.Parent = if mood == "Horror" then refs.Station else nil
 	end
 end
 
@@ -877,8 +1035,8 @@ function GameLoop.run(session)
 	local random = Random.new()
 
 	local level = 1
-	local station = 0
-	local enteringLevel = true
+	local checkpoint = 0
+	local mood = moodOf(level)
 	local lastAnomaly = nil
 	local stationStartedAt = os.clock()
 
@@ -898,11 +1056,11 @@ function GameLoop.run(session)
 
 	local function publishState(phase: string)
 		setAll("Phase", phase)
+		setAll("Mood", mood)
 		setAll("Level", level)
-		setAll("LevelName", Config.Levels[level].Name)
-		setAll("Station", station)
-		setAll("StationsPerLevel", Config.StationsPerLevel)
-		refs.CounterLabel.Text = text("Counter", level, station, Config.StationsPerLevel)
+		setAll("TotalLevels", Config.TotalLevels)
+		setAll("Checkpoint", checkpoint)
+		refs.CounterLabel.Text = text("Counter", level, Config.TotalLevels)
 	end
 
 	local function publishVote(continueVotes: number, backVotes: number, voters: number, countdown: number, tie: boolean)
@@ -929,27 +1087,30 @@ function GameLoop.run(session)
 	end
 
 	local function boardTrain()
-		for i, player in members() do
-			local character = player.Character
-			if character and character:FindFirstChild("HumanoidRootPart") then
-				character:PivotTo(refs.StandPoints[(i - 1) % #refs.StandPoints + 1])
-			end
+		for i, player in session.GetAlive() do
+			player.Character:PivotTo(refs.StandPoints[(i - 1) % #refs.StandPoints + 1])
 		end
 	end
 
 	local function pickAnomaly()
-		if (enteringLevel and Config.FirstStationOfLevelIsNormal) or #anomalies == 0 then
+		if table.find(Config.AlwaysNormalLevels, level) or #anomalies == 0 then
+			return nil
+		end
+		if mood == "Calm" and not Config.CalmAnomalies then
 			return nil
 		end
 		if random:NextNumber() >= Config.AnomalyChance then
 			return nil
 		end
-		-- Never the same anomaly twice in a row.
+		-- Calm levels only use the mild anomalies. Never the same one twice in a row.
 		local pool = {}
 		for _, anomaly in anomalies do
-			if anomaly ~= lastAnomaly or #anomalies == 1 then
+			if (mood == "Horror" or not anomaly.Horror) and anomaly ~= lastAnomaly then
 				table.insert(pool, anomaly)
 			end
+		end
+		if #pool == 0 then
+			return nil
 		end
 		return pool[random:NextInteger(1, #pool)]
 	end
@@ -957,7 +1118,7 @@ function GameLoop.run(session)
 	runClock(refs, function()
 		return stationStartedAt
 	end)
-	applyLevelMood(refs, level)
+	applyMood(refs, mood)
 	publishState("Riding")
 	publishVote(0, 0, 0, -1, false)
 	-- The lobby fades to black before the group appears in the train.
@@ -967,6 +1128,12 @@ function GameLoop.run(session)
 
 	while #members() > 0 do
 		-- Set up the next station while the screen is dark.
+		local newMood = moodOf(level)
+		if newMood ~= mood then
+			mood = newMood
+			applyMood(refs, mood)
+		end
+
 		local anomaly = pickAnomaly()
 		local ctx = AnomalyContext.new(refs, members(), random)
 		if anomaly then
@@ -978,9 +1145,8 @@ function GameLoop.run(session)
 			end
 		end
 		lastAnomaly = anomaly or lastAnomaly
-		enteringLevel = false
 		if Config.Debug then
-			print("[EndlessSubway] session", session.Slot, "level", level, "station", station, "anomaly:", anomaly and anomaly.Name or "none")
+			print("[EndlessSubway] session", session.Slot, "level", level, "anomaly:", anomaly and anomaly.Name or "none")
 		end
 
 		setDoors(refs, false)
@@ -992,7 +1158,7 @@ function GameLoop.run(session)
 		-- The train has stopped: doors open and the players decide.
 		setDoors(refs, true)
 		publishState("Station")
-		local choice, byCoinFlip = VoteManager.collect(refs.Doors, members, publishVote, random)
+		local choice, byCoinFlip, outcome = VoteManager.collect(refs.Doors, members, session.GetAlive, publishVote, random)
 
 		publishState("Riding")
 		if byCoinFlip then
@@ -1009,30 +1175,32 @@ function GameLoop.run(session)
 		-- Restore is idempotent, so this also covers anomalies whose Reset forgot to call it.
 		ctx:Restore()
 
-		if choice == nil then
-			-- Everyone left.
+		if outcome == "Left" then
 			return
 		end
 
-		local correct = (choice == "Continue") == (anomaly == nil)
-		if correct then
-			station += 1
-			if station >= Config.StationsPerLevel then
-				station = 0
-				enteringLevel = true
-				if level < #Config.Levels then
-					level += 1
-					message(text("LevelUp", level, Config.Levels[level].Name), 3)
-					applyLevelMood(refs, level)
-				else
-					message(text("Ending"), 4)
-					task.wait(4)
-					return
-				end
+		if outcome == "Wiped" then
+			-- The whole group died: everyone comes back, from the very beginning.
+			level, checkpoint = 1, 0
+			message(text("Wiped"), 3)
+			session.Revive()
+		elseif (choice == "Continue") == (anomaly == nil) then
+			if table.find(Config.Checkpoints, level) then
+				checkpoint = level
+				message(text("CheckpointReached", checkpoint + 1), 4)
+			end
+			level += 1
+			if level > Config.TotalLevels then
+				message(text("Ending"), 4)
+				task.wait(4)
+				return
+			end
+			if level == Config.HorrorStartsAtLevel then
+				task.delay(2, message, text("HorrorBegins"), 3)
 			end
 		else
-			station = 0
-			message(text("Wrong"), 3)
+			level = checkpoint + 1
+			message(text("Wrong", level), 3)
 		end
 
 		publishState("Riding")
@@ -1044,76 +1212,57 @@ return GameLoop
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="23">
+      <Item class="ModuleScript" referent="24">
         <Properties>
           <string name="Name">Graphics</string>
-          <string name="Source"><![CDATA[-- Dark, cold look for the whole server: no sky light, thick dark air, muted colors and a little
--- bloom so the few working lights glow. Lighting.Technology = Future is set in the place file
--- (default.project.json), because scripts cannot change it.
+          <string name="Source"><![CDATA[-- Creates the lighting effects every client uses. Each client then tweens Lighting and these
+-- effects to its own group's mood (lobby, bright calm levels, dark horror levels); see the Mood
+-- client script. Lighting.Technology = Future is set in the place file (default.project.json),
+-- because scripts cannot change it.
 
 local Lighting = game:GetService("Lighting")
 
 local Graphics = {}
 
-local function effect(className: string, name: string, properties: { [string]: any })
+local function effect(className: string, name: string)
 	local existing = Lighting:FindFirstChild(name)
 	if existing then
 		existing:Destroy()
 	end
 	local instance = Instance.new(className)
 	instance.Name = name
-	for key, value in properties do
-		(instance :: any)[key] = value
-	end
 	instance.Parent = Lighting
 end
 
 function Graphics.apply()
+	-- Indoors everywhere: no sky light; rooms are lit by their own lights and the ambient.
 	Lighting.ClockTime = 0
 	Lighting.Brightness = 0
-	Lighting.Ambient = Color3.fromRGB(14, 14, 18)
-	Lighting.OutdoorAmbient = Color3.new(0, 0, 0)
-	Lighting.EnvironmentDiffuseScale = 0
-	Lighting.EnvironmentSpecularScale = 0.4
 	Lighting.GlobalShadows = true
-	Lighting.ExposureCompensation = -0.2
+	Lighting.EnvironmentDiffuseScale = 0.3
+	Lighting.EnvironmentSpecularScale = 0.4
+	Lighting.Ambient = Color3.fromRGB(100, 100, 105)
+	Lighting.OutdoorAmbient = Color3.fromRGB(70, 70, 75)
 
-	-- Remove the default sky and sun effects a new place ships with.
 	for _, child in Lighting:GetChildren() do
 		if child:IsA("Sky") or child:IsA("SunRaysEffect") then
 			child:Destroy()
 		end
 	end
 
-	effect("Atmosphere", "SubwayAir", {
-		Density = 0.42,
-		Offset = 0,
-		Color = Color3.fromRGB(20, 20, 24),
-		Decay = Color3.fromRGB(10, 10, 12),
-		Glare = 0,
-		Haze = 2.2,
-	})
-	effect("ColorCorrectionEffect", "SubwayGrade", {
-		Brightness = -0.03,
-		Contrast = 0.18,
-		Saturation = -0.35,
-		TintColor = Color3.fromRGB(225, 232, 240),
-	})
-	effect("BloomEffect", "SubwayBloom", {
-		Intensity = 0.7,
-		Size = 30,
-		Threshold = 1.4,
-	})
+	effect("Atmosphere", "SubwayAir")
+	effect("ColorCorrectionEffect", "SubwayGrade")
+	effect("BloomEffect", "SubwayBloom")
 end
 
 return Graphics
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="24">
+      <Item class="ModuleScript" referent="25">
         <Properties>
           <string name="Name">LobbyBuilder</string>
-          <string name="Source"><![CDATA[-- The lobby: a dim ticket hall with a row of gates. Groups gather on a gate, and when it leaves
+          <string name="Source"><![CDATA[-- The lobby: a bright ticket hall with a row of gates. Groups gather on a gate, and when it leaves
 -- they get their own station. The lobby itself is always in English.
 --
 -- Layout (studs, relative to LOBBY_ORIGIN): floor X -60..60, Z -40..40, gates along Z = -28.
@@ -1130,12 +1279,12 @@ local LOBBY_ORIGIN = CFrame.new(0, 10, 0)
 local GATE_SPACING = 18
 
 local COLORS = {
-	Floor = Color3.fromRGB(60, 58, 56),
-	Wall = Color3.fromRGB(120, 116, 104),
-	Ceiling = Color3.fromRGB(35, 35, 38),
+	Floor = Color3.fromRGB(150, 146, 138),
+	Wall = Color3.fromRGB(225, 220, 205),
+	Ceiling = Color3.fromRGB(200, 198, 192),
 	Frame = Color3.fromRGB(40, 40, 44),
 	Yellow = Color3.fromRGB(230, 185, 25),
-	Light = Color3.fromRGB(255, 232, 195),
+	Light = Color3.fromRGB(255, 248, 235),
 }
 
 local LobbyBuilder = {}
@@ -1144,7 +1293,7 @@ local function at(x: number, y: number, z: number): CFrame
 	return LOBBY_ORIGIN * CFrame.new(x, y, z)
 end
 
-local function clearDefaultPlace()
+function LobbyBuilder.clearDefaultPlace()
 	-- A fresh "Baseplate" place ships a baseplate and a spawn; players must spawn in the lobby.
 	local baseplate = Workspace:FindFirstChild("Baseplate")
 	if baseplate and baseplate:IsA("BasePart") then
@@ -1166,9 +1315,9 @@ local function buildHall(lobby: Folder)
 	block(lobby, "WallEast", Vector3.new(1, 22, 80), at(60.5, 10, 0), COLORS.Wall, Enum.Material.CeramicTiles)
 	block(lobby, "FloorLine", Vector3.new(120, 0.05, 1), at(0, 0.03, -18), COLORS.Yellow)
 
-	for x = -45, 45, 30 do
-		for z = -15, 25, 20 do
-			Build.ceilingLight(lobby, "Light", Vector3.new(10, 0.2, 1.2), at(x, 19.9, z), COLORS.Light, 1.1, 22)
+	for x = -45, 45, 18 do
+		for z = -30, 30, 15 do
+			Build.ceilingLight(lobby, "Light", Vector3.new(10, 0.2, 1.2), at(x, 19.9, z), COLORS.Light, 2.2, 28)
 		end
 	end
 
@@ -1225,7 +1374,7 @@ end
 
 -- Builds the lobby into Workspace.Lobby. Returns the gates and the spawn point.
 function LobbyBuilder.build()
-	clearDefaultPlace()
+	LobbyBuilder.clearDefaultPlace()
 
 	local existing = Workspace:FindFirstChild("Lobby")
 	if existing then
@@ -1255,7 +1404,7 @@ return LobbyBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="25">
+      <Item class="ModuleScript" referent="26">
         <Properties>
           <string name="Name">LobbyManager</string>
           <string name="Source"><![CDATA[-- Lobby gates. Standing on a gate joins its group; stepping off leaves it. The first player on a
@@ -1408,7 +1557,7 @@ function LobbyManager.start(lobby)
 					end
 
 					if pad.CountdownEnd and now >= pad.CountdownEnd then
-						SessionManager.start(table.clone(pad.Members), pad.Language)
+						SessionManager.launch(table.clone(pad.Members), pad.Language)
 						resetPad(pad)
 					end
 				end
@@ -1446,26 +1595,40 @@ return LobbyManager
 ]]></string>
         </Properties>
       </Item>
-      <Item class="Script" referent="26">
+      <Item class="Script" referent="27">
         <Properties>
           <string name="Name">Main</string>
           <token name="RunContext">0</token>
-          <string name="Source"><![CDATA[-- Endless Subway: sets up the dark look, builds the lobby, and starts matching groups.
--- Each group's station is built when their gate leaves (see SessionManager).
+          <string name="Source"><![CDATA[-- Endless Subway. This one place plays two roles:
+--   Lobby server: builds the lobby and sends groups off from its gates.
+--   Game server: a private server a gate teleported its group to; it runs only their game.
+-- Roblox Studio cannot teleport, so there it is always a lobby server that also hosts the games.
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+
+local Config = require(ReplicatedStorage.Shared.Config)
 local Graphics = require(script.Parent.Graphics)
 local LobbyBuilder = require(script.Parent.LobbyBuilder)
 local LobbyManager = require(script.Parent.LobbyManager)
 local SessionManager = require(script.Parent.SessionManager)
 
+local live = Config.UseSeparateServers and not RunService:IsStudio()
+local isGameServer = live and game.PrivateServerId ~= "" and game.PrivateServerOwnerId == 0
+
 Graphics.apply()
-local lobby = LobbyBuilder.build()
-SessionManager.init(lobby)
-LobbyManager.start(lobby)
+if isGameServer then
+	LobbyBuilder.clearDefaultPlace()
+	SessionManager.initGameServer()
+else
+	local lobby = LobbyBuilder.build()
+	SessionManager.init(lobby, live)
+	LobbyManager.start(lobby)
+end
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="27">
+      <Item class="ModuleScript" referent="28">
         <Properties>
           <string name="Name">Mannequin</string>
           <string name="Source"><![CDATA[-- Faceless block passengers built from anchored parts, so the map needs no uploaded assets.
@@ -1551,7 +1714,7 @@ return Mannequin
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="28">
+      <Item class="ModuleScript" referent="29">
         <Properties>
           <string name="Name">MapBuilder</string>
           <string name="Source"><![CDATA[-- Builds one station in code: an enterable metro car between two closed ones, a long dark
@@ -1560,7 +1723,7 @@ return Mannequin
 --
 -- Layout (studs, relative to the station origin). The platform runs along X, the track is on +Z.
 --   Platform floor      X -100..100, Z -10..10, top at Y 1
---   Train car (open)    X -20..20,   Z 10..19, doors on the platform side (Z 11)
+--   Train car (open)    X -20..20,   Z 10..24 (wide), doors on the platform side (Z 11)
 --   Closed cars         X -62..-22 and 22..62
 --   CONTINUE door       +X end of the platform
 --   GO BACK door        -X end of the platform
@@ -1626,11 +1789,11 @@ local function buildShell(map: Folder)
 	block(shell, "BackWall", Vector3.new(length + 2, 20, 1), at(0, 6, -10.5), COLORS.Wall, Enum.Material.CeramicTiles)
 	block(shell, "WallStripe", Vector3.new(length, 1.2, 0.1), at(0, 2.6, -9.95), COLORS.WallStripe, Enum.Material.CeramicTiles)
 	block(shell, "WallGrime", Vector3.new(length, 3, 0.1), at(0, 14.5, -9.95), COLORS.WallGrime, Enum.Material.Concrete)
-	block(shell, "TunnelWall", Vector3.new(length + 2, 20, 1), at(0, 6, 21.5), COLORS.Dark, Enum.Material.Concrete)
-	block(shell, "Ceiling", Vector3.new(length + 2, 1, 33), at(0, 16.5, 5.5), COLORS.Ceiling, Enum.Material.Concrete)
-	block(shell, "TrackBed", Vector3.new(length, 1, 11), at(0, -3.5, 15.5), COLORS.Dark, Enum.Material.Slate)
-	block(shell, "RailNear", Vector3.new(length, 0.4, 0.4), at(0, -2.8, 13.5), Color3.fromRGB(90, 90, 95), Enum.Material.Metal)
-	block(shell, "RailFar", Vector3.new(length, 0.4, 0.4), at(0, -2.8, 17.5), Color3.fromRGB(90, 90, 95), Enum.Material.Metal)
+	block(shell, "TunnelWall", Vector3.new(length + 2, 20, 1), at(0, 6, 27.5), COLORS.Dark, Enum.Material.Concrete)
+	block(shell, "Ceiling", Vector3.new(length + 2, 1, 39), at(0, 16.5, 8.5), COLORS.Ceiling, Enum.Material.Concrete)
+	block(shell, "TrackBed", Vector3.new(length, 1, 17), at(0, -3.5, 18.5), COLORS.Dark, Enum.Material.Slate)
+	block(shell, "RailNear", Vector3.new(length, 0.4, 0.4), at(0, -2.8, 15.5), Color3.fromRGB(90, 90, 95), Enum.Material.Metal)
+	block(shell, "RailFar", Vector3.new(length, 0.4, 0.4), at(0, -2.8, 20.5), Color3.fromRGB(90, 90, 95), Enum.Material.Metal)
 
 	-- Pipes along the ceiling.
 	for _, z in { -8.2, -7.2 } do
@@ -1656,7 +1819,7 @@ local function buildExitDoor(map: Folder, kind: "Continue" | "Back", language: s
 	model.Name = kind .. "Door"
 	model.Parent = map
 
-	block(model, "EndWall", Vector3.new(1, 20, 33), at(wallX, 6, 5.5), COLORS.Wall, Enum.Material.CeramicTiles)
+	block(model, "EndWall", Vector3.new(1, 20, 39), at(wallX, 6, 8.5), COLORS.Wall, Enum.Material.CeramicTiles)
 	local door = block(model, "Door", Vector3.new(0.4, 8, 5), at(doorX, 5, 0), COLORS.Dark, Enum.Material.Metal)
 	block(model, "Frame", Vector3.new(0.3, 9, 6), at(sign * (HALF_LENGTH - 0.05), 5.5, 0), color)
 
@@ -1684,61 +1847,68 @@ local function buildClosedCar(map: Folder, centerX: number)
 	car.Name = "ClosedCar"
 	car.Parent = map
 
-	block(car, "Body", Vector3.new(40, 10, 8), at(centerX, 5.5, 15), COLORS.CarBody, Enum.Material.Metal)
-	block(car, "Underbody", Vector3.new(40, 4, 7), at(centerX, -1.5, 15), COLORS.Dark, Enum.Material.Metal)
+	block(car, "Body", Vector3.new(40, 11, 14), at(centerX, 6.5, 18), COLORS.CarBody, Enum.Material.Metal)
+	block(car, "Underbody", Vector3.new(40, 4, 13), at(centerX, -1.5, 18), COLORS.Dark, Enum.Material.Metal)
 	block(car, "Stripe", Vector3.new(40, 0.6, 0.1), at(centerX, 3.2, 10.95), COLORS.CarStripe)
 	-- Dark windows: nobody seems to be inside. Mostly.
 	for offset = -15, 15, 10 do
-		block(car, "Window", Vector3.new(6, 3, 0.1), at(centerX + offset, 6.5, 10.95), Color3.fromRGB(8, 10, 14), Enum.Material.Glass)
+		block(car, "Window", Vector3.new(6, 3, 0.1), at(centerX + offset, 7, 10.95), Color3.fromRGB(8, 10, 14), Enum.Material.Glass)
 	end
 	for _, offset in { -10, 10 } do
-		block(car, "DoorOutline", Vector3.new(5, 7, 0.1), at(centerX + offset, 4.5, 10.94), Color3.fromRGB(110, 115, 122), Enum.Material.Metal)
+		block(car, "DoorOutline", Vector3.new(7, 8, 0.1), at(centerX + offset, 5, 10.94), Color3.fromRGB(110, 115, 122), Enum.Material.Metal)
 	end
 end
 
+-- The open car is wide and clear: wide doors, seats only along the far wall, and grab bars up at
+-- the roof instead of poles in the way.
 local function buildCar(map: Folder)
 	local car = Instance.new("Model")
 	car.Name = "TrainCar"
 	car.Parent = map
 
-	block(car, "Floor", Vector3.new(40, 4, 9), at(0, -1, 14.5), Color3.fromRGB(60, 60, 64), Enum.Material.DiamondPlate)
-	block(car, "Roof", Vector3.new(40, 1, 9), at(0, 10.5, 14.5), COLORS.CarBody, Enum.Material.Metal)
-	block(car, "FarWall", Vector3.new(40, 9, 0.5), at(0, 5.5, 18.75), COLORS.CarBody, Enum.Material.Metal)
-	block(car, "Window", Vector3.new(36, 2.5, 0.1), at(0, 6.5, 18.45), Color3.fromRGB(6, 8, 12), Enum.Material.Glass)
-	block(car, "Stripe", Vector3.new(40, 0.6, 0.1), at(0, 8.4, 18.45), COLORS.CarStripe)
-	block(car, "EndWallWest", Vector3.new(0.5, 9, 9), at(-19.75, 5.5, 14.5), COLORS.CarBody, Enum.Material.Metal)
-	block(car, "EndWallEast", Vector3.new(0.5, 9, 9), at(19.75, 5.5, 14.5), COLORS.CarBody, Enum.Material.Metal)
+	block(car, "Floor", Vector3.new(40, 4, 14), at(0, -1, 17), Color3.fromRGB(70, 70, 76), Enum.Material.DiamondPlate)
+	block(car, "Roof", Vector3.new(40, 1, 14), at(0, 12.5, 17), COLORS.CarBody, Enum.Material.Metal)
+	block(car, "FarWall", Vector3.new(40, 11, 0.5), at(0, 6.5, 24.25), COLORS.CarBody, Enum.Material.Metal)
+	block(car, "Window", Vector3.new(36, 3, 0.1), at(0, 7.5, 23.95), Color3.fromRGB(6, 8, 12), Enum.Material.Glass)
+	block(car, "Stripe", Vector3.new(40, 0.6, 0.1), at(0, 10, 23.95), COLORS.CarStripe)
+	block(car, "EndWallWest", Vector3.new(0.5, 11, 14), at(-19.75, 6.5, 17), COLORS.CarBody, Enum.Material.Metal)
+	block(car, "EndWallEast", Vector3.new(0.5, 11, 14), at(19.75, 6.5, 17), COLORS.CarBody, Enum.Material.Metal)
 
-	-- Platform side: three wall segments with two door openings (X -12.5..-7.5 and 7.5..12.5).
-	block(car, "SideWallWest", Vector3.new(7.5, 9, 0.5), at(-16.25, 5.5, 11.25), COLORS.CarBody, Enum.Material.Metal)
-	block(car, "SideWallMiddle", Vector3.new(15, 9, 0.5), at(0, 5.5, 11.25), COLORS.CarBody, Enum.Material.Metal)
-	block(car, "SideWallEast", Vector3.new(7.5, 9, 0.5), at(16.25, 5.5, 11.25), COLORS.CarBody, Enum.Material.Metal)
+	-- Platform side: three wall segments with two wide door openings (X -13.5..-6.5 and 6.5..13.5).
+	block(car, "SideWallWest", Vector3.new(6.5, 11, 0.5), at(-16.75, 6.5, 11.25), COLORS.CarBody, Enum.Material.Metal)
+	block(car, "SideWallMiddle", Vector3.new(13, 11, 0.5), at(0, 6.5, 11.25), COLORS.CarBody, Enum.Material.Metal)
+	block(car, "SideWallEast", Vector3.new(6.5, 11, 0.5), at(16.75, 6.5, 11.25), COLORS.CarBody, Enum.Material.Metal)
 
 	local doorPanels = {}
 	for _, centerX in { -10, 10 } do
-		block(car, "DoorHeader", Vector3.new(5, 2, 0.5), at(centerX, 9, 11.25), COLORS.CarBody, Enum.Material.Metal)
+		block(car, "DoorHeader", Vector3.new(7, 3, 0.5), at(centerX, 10.5, 11.25), COLORS.CarBody, Enum.Material.Metal)
 		for _, side in { -1, 1 } do
-			local closed = at(centerX + side * 1.25, 4.5, 11.75)
-			local open = at(centerX + side * 3.6, 4.5, 11.75)
-			local panel = block(car, "DoorPanel", Vector3.new(2.5, 7, 0.3), closed, Color3.fromRGB(130, 135, 142), Enum.Material.Metal)
+			local closed = at(centerX + side * 1.75, 5, 11.75)
+			local open = at(centerX + side * 5.3, 5, 11.75)
+			local panel = block(car, "DoorPanel", Vector3.new(3.5, 8, 0.3), closed, Color3.fromRGB(130, 135, 142), Enum.Material.Metal)
 			table.insert(doorPanels, { Part = panel, Closed = closed, Open = open })
 		end
 	end
 
-	-- Seats along the far wall, poles down the middle, a cold light strip on the roof.
 	for _, centerX in { -10, 10 } do
-		block(car, "Seat", Vector3.new(14, 0.6, 1.8), at(centerX, 2.6, 17.6), COLORS.CarSeat, Enum.Material.Fabric)
-		block(car, "SeatBack", Vector3.new(14, 2.5, 0.4), at(centerX, 4, 18.3), COLORS.CarSeat, Enum.Material.Fabric)
+		block(car, "Seat", Vector3.new(14, 0.6, 1.8), at(centerX, 2.6, 22.9), COLORS.CarSeat, Enum.Material.Fabric)
+		block(car, "SeatBack", Vector3.new(14, 2.5, 0.4), at(centerX, 4, 23.8), COLORS.CarSeat, Enum.Material.Fabric)
 	end
-	for _, x in { -15, 0, 15 } do
-		local pole = block(car, "Pole", Vector3.new(9, 0.3, 0.3), at(x, 5.5, 14.5) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(170, 170, 175), Enum.Material.Metal)
-		pole.Shape = Enum.PartType.Cylinder
+	for _, z in { 14.5, 19.5 } do
+		local bar = block(car, "GrabBar", Vector3.new(36, 0.25, 0.25), at(0, 11.4, z), Color3.fromRGB(170, 170, 175), Enum.Material.Metal)
+		bar.Shape = Enum.PartType.Cylinder
+		bar.CanCollide = false
 	end
-	Build.ceilingLight(car, "LightStrip", Vector3.new(36, 0.2, 0.8), at(0, 9.9, 14.5), Color3.fromRGB(210, 225, 255), 0.7, 11)
+	for _, z in { 14.5, 19.5 } do
+		Build.ceilingLight(car, "LightStrip", Vector3.new(36, 0.2, 0.8), at(0, 11.9, z), Color3.fromRGB(235, 240, 255), 1.4, 14)
+	end
 
+	-- Where the group stands when the train stops: two rows, enough for 10 players.
 	local standPoints = {}
-	for x = -16, 16, 4 do
-		table.insert(standPoints, at(x, 4, 13.5))
+	for _, z in { 15, 18.5 } do
+		for x = -16, 16, 4 do
+			table.insert(standPoints, at(x, 4, z))
+		end
 	end
 
 	return car, doorPanels, standPoints
@@ -1757,15 +1927,19 @@ local function buildStation(map: Folder, refs, language: string)
 		table.insert(refs.Pillars, pillar)
 	end
 
-	-- Ceiling lights. Some are dead, which leaves pools of darkness along the platform.
-	local deadLights = { [-70] = true, [-30] = true, [50] = true, [90] = true }
+	-- Ceiling lights, plus a second row over the platform edge. In the dark half of the game some of
+	-- them die ("DiesInHorror"), which leaves pools of darkness along the platform.
+	local diesInHorror = { [-70] = true, [-30] = true, [50] = true, [90] = true }
 	refs.Lights = {}
 	for x = -90, 90, 20 do
-		if deadLights[x] then
-			block(station, "DeadLight", Vector3.new(8, 0.2, 1), at(x, 15.9, 0), Color3.fromRGB(60, 60, 58))
-		else
-			table.insert(refs.Lights, Build.ceilingLight(station, "Light", Vector3.new(8, 0.2, 1), at(x, 15.9, 0), COLORS.Light, 0.9, 16))
-		end
+		local fixture = Build.ceilingLight(station, "Light", Vector3.new(8, 0.2, 1), at(x, 15.9, 0), COLORS.Light, 1.8, 20)
+		fixture:SetAttribute("DiesInHorror", diesInHorror[x] == true)
+		table.insert(refs.Lights, fixture)
+	end
+	for x = -80, 80, 40 do
+		local fixture = Build.ceilingLight(station, "Light", Vector3.new(8, 0.2, 1), at(x, 15.9, 7), COLORS.Light, 1.8, 20)
+		fixture:SetAttribute("DiesInHorror", true)
+		table.insert(refs.Lights, fixture)
 	end
 
 	-- Benches against the back wall, facing the track.
@@ -1839,13 +2013,14 @@ local function buildStation(map: Folder, refs, language: string)
 		Npc.create("Passenger", "Sit", at(-70, 3, -8.1) * flip, Color3.fromRGB(60, 60, 60)),
 		Npc.create("Passenger", "Stand", at(-5, 3, -3) * flip, Color3.fromRGB(95, 95, 100)),
 		Npc.create("Passenger", "Stand", at(62, 3, 6) * flip, Color3.fromRGB(70, 40, 60)),
-		Npc.create("Passenger", "Sit", at(-10, 2.9, 17.4), Color3.fromRGB(120, 40, 45)),
+		Npc.create("Passenger", "Sit", at(-10, 2.9, 22.7), Color3.fromRGB(120, 40, 45)),
 	}
 	for _, passenger in refs.Passengers do
 		passenger.Parent = station
 	end
 
-	-- Hints at the twist. Nobody gets them the first time.
+	-- Hints at the twist. They only show up once the dark half begins (see GameLoop), and nobody
+	-- gets them the first time.
 	local newspaper = block(station, "Newspaper", Vector3.new(2, 0.05, 1.4), at(-10.8, 3.03, -8.2), Color3.fromRGB(225, 222, 210))
 	refs.NewspaperLabel = surfaceText(newspaper, Enum.NormalId.Top, Strings.get(language, "Newspaper", Strings.tomorrow(language)), {
 		Background = Color3.fromRGB(225, 222, 210),
@@ -1877,12 +2052,14 @@ local function buildStation(map: Folder, refs, language: string)
 	glow.Color = Color3.fromRGB(200, 220, 255)
 	glow.Parent = phone
 
+	refs.Hints = { newspaper, flowers, phone }
 	refs.Station = station
 end
 
 -- Builds one station at stationOrigin into Workspace and returns the references the game loop and
 -- anomalies use. refs.At(x, y, z) converts layout coordinates of this station to world space.
-function MapBuilder.build(stationOrigin: CFrame, name: string, language: string)
+-- withSpawn adds a spawn point in the train, for game servers that have no lobby.
+function MapBuilder.build(stationOrigin: CFrame, name: string, language: string, withSpawn: boolean?)
 	origin = stationOrigin
 
 	local existing = Workspace:FindFirstChild(name)
@@ -1912,6 +2089,19 @@ function MapBuilder.build(stationOrigin: CFrame, name: string, language: string)
 	refs.Car, refs.DoorPanels, refs.StandPoints = buildCar(map)
 	buildStation(map, refs, language)
 
+	if withSpawn then
+		local spawn = Instance.new("SpawnLocation")
+		spawn.Name = "TrainSpawn"
+		spawn.Size = Vector3.new(16, 0.1, 6)
+		spawn.CFrame = at(0, 1.05, 17)
+		spawn.Anchored = true
+		spawn.CanCollide = false
+		spawn.Transparency = 1
+		spawn.Neutral = true
+		spawn.Duration = 0
+		spawn.Parent = refs.Car
+	end
+
 	map.Parent = Workspace
 	return refs
 end
@@ -1920,7 +2110,7 @@ return MapBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="29">
+      <Item class="ModuleScript" referent="30">
         <Properties>
           <string name="Name">Npc</string>
           <string name="Source"><![CDATA[-- Passengers. Each one appears straight away as a block mannequin, then (if
@@ -2052,15 +2242,25 @@ return Npc
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="30">
+      <Item class="ModuleScript" referent="31">
         <Properties>
           <string name="Name">SessionManager</string>
-          <string name="Source"><![CDATA[-- Runs one game per group. Each session gets its own station, built in the group's language at
--- its own spot far from the others, and its own game loop. When the loop ends (everyone left, or
--- they reached the end) the station is destroyed and whoever is left goes back to the lobby.
+          <string name="Source"><![CDATA[-- Runs one game per group, and owns spawning and death.
+--
+-- Where a group plays:
+--   Live game (Config.UseSeparateServers, outside Studio): the lobby server teleports the group to a
+--   private server of this same place. That server is the group's own world: it builds one station
+--   and runs one game, then sends everyone back to a lobby server.
+--   Studio (or teleport failure): the group plays in the lobby server, on its own station copy
+--   built far from the lobby.
+--
+-- Death: players never respawn on their own during a game. A dead player spectates (see the
+-- Spectate client script) until the whole group is dead; then the game loop calls Revive and the
+-- group starts again from level 1.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TeleportService = game:GetService("TeleportService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Net = require(ReplicatedStorage.Shared.Net)
@@ -2068,29 +2268,54 @@ local Strings = require(ReplicatedStorage.Shared.Strings)
 local GameLoop = require(script.Parent.GameLoop)
 local MapBuilder = require(script.Parent.MapBuilder)
 
+local LOBBY_RESPAWN_SECONDS = 3
+
 local GAME_ATTRIBUTES = {
 	"Level",
-	"LevelName",
-	"Station",
-	"StationsPerLevel",
+	"TotalLevels",
+	"Checkpoint",
 	"VotesContinue",
 	"VotesBack",
 	"Voters",
 	"VoteCountdown",
 	"VoteTie",
+	"SessionKey",
 }
 
 local SessionManager = {}
 
-local lobby = nil
+local lobby = nil -- lobby refs; nil on a game server
+local live = false -- true when groups are teleported to their own servers
 local sessionOf: { [Player]: any } = {}
+local teleporting: { [Player]: boolean } = {}
 local freeSlots: { number } = {}
 local nextSlot = 1
 
-local function moveTo(player: Player, cframe: CFrame)
+local function aliveCharacter(player: Player): Model?
 	local character = player.Character
-	if character and character:FindFirstChild("HumanoidRootPart") then
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if character and humanoid and humanoid.Health > 0 and character:FindFirstChild("HumanoidRootPart") then
+		return character
+	end
+	return nil
+end
+
+local function moveTo(player: Player, cframe: CFrame)
+	local character = aliveCharacter(player)
+	if character then
 		character:PivotTo(cframe)
+	end
+end
+
+local function sendToLobbyServer(players: { Player })
+	local ok, err = pcall(function()
+		TeleportService:TeleportAsync(game.PlaceId, players)
+	end)
+	if not ok then
+		warn("[EndlessSubway] teleport to lobby failed:", err)
+		for _, player in players do
+			player:Kick("Thanks for playing Endless Subway! Rejoin to go back to the lobby.")
+		end
 	end
 end
 
@@ -2099,71 +2324,113 @@ local function resetToLobby(player: Player)
 		player:SetAttribute(name, nil)
 	end
 	player:SetAttribute("Phase", "Lobby")
+	player:SetAttribute("Mood", "Lobby")
 	player:SetAttribute("Language", "en")
-	if player.Parent then
-		Net.event():FireClient(player, { Kind = "Fade", Visible = false, Duration = 0.5 })
-		moveTo(player, lobby.SpawnCFrame)
-	end
-end
-
-function SessionManager.isPlaying(player: Player): boolean
-	return sessionOf[player] ~= nil
-end
-
--- Takes a player out of their session and back to the lobby.
-function SessionManager.leave(player: Player)
-	local session = sessionOf[player]
-	if not session then
+	player:SetAttribute("Dead", false)
+	if not player.Parent then
 		return
 	end
+	Net.event():FireClient(player, { Kind = "Fade", Visible = false, Duration = 0.5 })
+	if aliveCharacter(player) then
+		moveTo(player, lobby.SpawnCFrame)
+	else
+		player:LoadCharacter()
+	end
+end
+
+-- True while a player is in a game, or on their way to one.
+function SessionManager.isPlaying(player: Player): boolean
+	return sessionOf[player] ~= nil or teleporting[player] == true
+end
+
+local function removeMember(player: Player)
+	local session = sessionOf[player]
 	sessionOf[player] = nil
-	local index = table.find(session.Members, player)
+	local index = session and table.find(session.Members, player)
 	if index then
 		table.remove(session.Members, index)
 	end
-	resetToLobby(player)
+	return session
 end
 
-local function finish(session)
-	for _, player in table.clone(session.Members) do
-		SessionManager.leave(player)
+-- Takes a player out of their game and back to the lobby.
+function SessionManager.leave(player: Player)
+	if not removeMember(player) then
+		return
 	end
-	session.Refs.Map:Destroy()
-	table.insert(freeSlots, session.Slot)
+	if lobby then
+		resetToLobby(player)
+	else
+		sendToLobbyServer({ player })
+	end
 end
 
-function SessionManager.start(members: { Player }, language: string)
-	local slot = table.remove(freeSlots) or nextSlot
-	if slot == nextSlot then
-		nextSlot += 1
+local function addMember(session, player: Player)
+	if not player.Parent or sessionOf[player] then
+		return
 	end
+	sessionOf[player] = session
+	table.insert(session.Members, player)
+	player:SetAttribute("Language", session.Language)
+	player:SetAttribute("SessionKey", session.Key)
+	player:SetAttribute("Dead", false)
+end
 
-	local stationOrigin = CFrame.new(slot * Config.StationSpacing, 50, 0)
+local function newSession(slot: number, language: string, withSpawn: boolean)
 	local session = {
 		Slot = slot,
+		Key = tostring(slot) .. "-" .. tostring(os.clock()),
 		Language = Strings.normalize(language),
-		Members = {},
+		Members = {} :: { Player },
 		Refs = nil :: any,
 	}
-	session.Refs = MapBuilder.build(stationOrigin, "Station" .. slot, session.Language)
+	local stationOrigin = CFrame.new(slot * Config.StationSpacing, 50, 0)
+	session.Refs = MapBuilder.build(stationOrigin, "Station" .. slot, session.Language, withSpawn)
 
 	-- Players still in the server, in join order.
 	function session.GetMembers(): { Player }
-		local alive = {}
+		local present = {}
 		for _, player in session.Members do
 			if player.Parent then
+				table.insert(present, player)
+			end
+		end
+		return present
+	end
+
+	-- Members whose character is alive.
+	function session.GetAlive(): { Player }
+		local alive = {}
+		for _, player in session.GetMembers() do
+			if aliveCharacter(player) then
 				table.insert(alive, player)
 			end
 		end
 		return alive
 	end
 
-	for _, player in members do
-		if player.Parent and not sessionOf[player] then
-			sessionOf[player] = session
-			table.insert(session.Members, player)
-			player:SetAttribute("Language", session.Language)
+	-- Brings every dead member back (used after the whole group died).
+	function session.Revive()
+		for _, player in session.GetMembers() do
+			player:SetAttribute("Dead", false)
+			if not aliveCharacter(player) then
+				player:LoadCharacter()
+			end
 		end
+	end
+
+	return session
+end
+
+local function runLocal(members: { Player }, language: string)
+	local slot = table.remove(freeSlots) or nextSlot
+	if slot == nextSlot then
+		nextSlot += 1
+	end
+
+	local session = newSession(slot, language, false)
+	for _, player in members do
+		addMember(session, player)
 	end
 
 	task.spawn(function()
@@ -2171,18 +2438,52 @@ function SessionManager.start(members: { Player }, language: string)
 		if not ok then
 			warn("[EndlessSubway] session", slot, "crashed:", err)
 		end
-		finish(session)
+		for _, player in table.clone(session.Members) do
+			SessionManager.leave(player)
+		end
+		session.Refs.Map:Destroy()
+		table.insert(freeSlots, slot)
 	end)
 end
 
-function SessionManager.init(lobbyRefs)
-	lobby = lobbyRefs
+-- Called by the lobby when a gate leaves.
+function SessionManager.launch(members: { Player }, language: string)
+	if live then
+		local options = Instance.new("TeleportOptions")
+		options.ShouldReserveServer = true
+		options:SetTeleportData({ Language = Strings.normalize(language), Expected = #members })
+		for _, player in members do
+			teleporting[player] = true
+			Net.event():FireClient(player, { Kind = "Fade", Visible = true, Duration = 0.5 })
+		end
+		local ok, err = pcall(function()
+			TeleportService:TeleportAsync(game.PlaceId, members, options)
+		end)
+		if ok then
+			return
+		end
+		warn("[EndlessSubway] could not teleport the group, playing in this server instead:", err)
+	end
+	for _, player in members do
+		teleporting[player] = nil
+	end
+	runLocal(members, language)
+end
+
+-- canSpawn says whether a player may get a character yet (a game server waits for its station).
+local function setUpSpawning(onDied: (Player) -> (), canSpawn: () -> boolean)
+	Players.CharacterAutoLoads = false
 
 	local function onPlayer(player: Player)
-		player:SetAttribute("Phase", "Lobby")
-		player:SetAttribute("Language", "en")
+		player:SetAttribute("Dead", false)
 		player.CharacterAdded:Connect(function(character)
-			-- Respawning mid-game puts you back in your group's train.
+			local humanoid = character:WaitForChild("Humanoid", 10)
+			if humanoid and humanoid:IsA("Humanoid") then
+				humanoid.Died:Connect(function()
+					onDied(player)
+				end)
+			end
+			-- Spawning mid-game puts you in your group's train.
 			local session = sessionOf[player]
 			if session then
 				character:WaitForChild("HumanoidRootPart", 5)
@@ -2190,28 +2491,124 @@ function SessionManager.init(lobbyRefs)
 				moveTo(player, session.Refs.StandPoints[1])
 			end
 		end)
+		if canSpawn() then
+			player:LoadCharacter()
+		end
 	end
 
 	Players.PlayerAdded:Connect(onPlayer)
 	for _, player in Players:GetPlayers() do
-		onPlayer(player)
+		task.spawn(onPlayer, player)
+	end
+end
+
+-- Lobby server (or Studio).
+function SessionManager.init(lobbyRefs, isLive: boolean)
+	lobby = lobbyRefs
+	live = isLive
+
+	setUpSpawning(function(player)
+		if sessionOf[player] then
+			player:SetAttribute("Dead", true)
+		else
+			task.delay(LOBBY_RESPAWN_SECONDS, function()
+				if player.Parent and not sessionOf[player] and not aliveCharacter(player) then
+					player:LoadCharacter()
+				end
+			end)
+		end
+	end, function()
+		return true
+	end)
+
+	Players.PlayerAdded:Connect(function(player)
+		player:SetAttribute("Phase", "Lobby")
+		player:SetAttribute("Mood", "Lobby")
+		player:SetAttribute("Language", "en")
+	end)
+	for _, player in Players:GetPlayers() do
+		player:SetAttribute("Phase", "Lobby")
+		player:SetAttribute("Mood", "Lobby")
+		player:SetAttribute("Language", "en")
 	end
 	Players.PlayerRemoving:Connect(function(player)
-		-- Just drop them from their group; there is nobody left to send back to the lobby.
-		local session = sessionOf[player]
-		sessionOf[player] = nil
-		local index = session and table.find(session.Members, player)
-		if index then
-			table.remove(session.Members, index)
+		teleporting[player] = nil
+		removeMember(player)
+	end)
+
+	-- A teleport that fails after it started: put the player back in the lobby.
+	TeleportService.TeleportInitFailed:Connect(function(player, _result, errorMessage)
+		if teleporting[player] then
+			warn("[EndlessSubway] teleport failed for", player.Name, errorMessage)
+			teleporting[player] = nil
+			resetToLobby(player)
 		end
 	end)
+end
+
+-- A group's own server: wait for the group, play one game, send everyone back to the lobby.
+function SessionManager.initGameServer()
+	lobby = nil
+	live = true
+
+	local session = nil
+	local language = "en"
+	local expected = 1
+
+	setUpSpawning(function(player)
+		player:SetAttribute("Dead", true)
+	end, function()
+		return session ~= nil
+	end)
+
+	local function join(player: Player)
+		local data = player:GetJoinData().TeleportData
+		if type(data) == "table" and not session then
+			language = Strings.normalize(data.Language)
+			expected = tonumber(data.Expected) or expected
+		end
+		player:SetAttribute("Phase", "Riding")
+		player:SetAttribute("Mood", "Calm")
+		if session then
+			-- A late teammate joins the game that is already running.
+			addMember(session, player)
+		end
+	end
+	Players.PlayerAdded:Connect(join)
+	for _, player in Players:GetPlayers() do
+		join(player)
+	end
+	Players.PlayerRemoving:Connect(removeMember)
+
+	-- Wait for the group to arrive.
+	while #Players:GetPlayers() == 0 do
+		Players.PlayerAdded:Wait()
+	end
+	local deadline = os.clock() + Config.GroupArrivalTimeout
+	while #Players:GetPlayers() < expected and os.clock() < deadline do
+		task.wait(0.5)
+	end
+
+	session = newSession(0, language, true)
+	for _, player in Players:GetPlayers() do
+		addMember(session, player)
+		if not player.Character then
+			task.spawn(player.LoadCharacter, player)
+		end
+	end
+
+	local ok, err = pcall(GameLoop.run, session)
+	if not ok then
+		warn("[EndlessSubway] game crashed:", err)
+	end
+	sendToLobbyServer(Players:GetPlayers())
 end
 
 return SessionManager
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="31">
+      <Item class="ModuleScript" referent="32">
         <Properties>
           <string name="Name">VoteManager</string>
           <string name="Source"><![CDATA[-- Majority vote by standing in front of a door. Each player votes with their body: whoever is
@@ -2227,6 +2624,7 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local POLL_SECONDS = 0.2
 
 export type Choice = "Continue" | "Back"
+export type Outcome = "Decided" | "Left" | "Wiped"
 type Publish = (continueVotes: number, backVotes: number, voters: number, countdown: number, tie: boolean) -> ()
 
 local VoteManager = {}
@@ -2237,22 +2635,12 @@ local function isInside(zone: BasePart, position: Vector3): boolean
 	return math.abs(relative.X) <= half.X and math.abs(relative.Z) <= half.Z and relative.Y > -2 and relative.Y < 10
 end
 
-local function rootOf(player: Player): BasePart?
-	local character = player.Character
-	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-	if not character or not humanoid or humanoid.Health <= 0 then
-		return nil
-	end
-	local root = character:FindFirstChild("HumanoidRootPart")
-	return if root and root:IsA("BasePart") then root else nil
-end
-
-local function count(doors, members: { Player })
-	local continueVotes, backVotes, voters = 0, 0, 0
-	for _, player in members do
-		local root = rootOf(player)
-		if root then
-			voters += 1
+-- Only living players vote.
+local function count(doors, alive: { Player })
+	local continueVotes, backVotes = 0, 0
+	for _, player in alive do
+		local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+		if root and root:IsA("BasePart") then
 			if isInside(doors.Continue.Zone, root.Position) then
 				continueVotes += 1
 			elseif isInside(doors.Back.Zone, root.Position) then
@@ -2260,24 +2648,33 @@ local function count(doors, members: { Player })
 			end
 		end
 	end
-	return continueVotes, backVotes, voters
+	return continueVotes, backVotes, #alive
 end
 
--- Yields until the group decides. Returns nil if the whole group left. The second value is true
--- when a tie was settled by coin flip.
-function VoteManager.collect(doors, getMembers: () -> { Player }, publish: Publish, random: Random): (Choice?, boolean)
+-- Yields until the group decides. Returns the choice, whether a coin flip settled a tie, and the
+-- outcome: "Decided", "Left" (the whole group left the game) or "Wiped" (everyone is dead).
+function VoteManager.collect(
+	doors,
+	getMembers: () -> { Player },
+	getAlive: () -> { Player },
+	publish: Publish,
+	random: Random
+): (Choice?, boolean, Outcome)
 	local firstVoteAt: number? = nil
 	local leader: Choice? = nil
 	local leaderSince = 0
 
 	while true do
-		local members = getMembers()
-		if #members == 0 then
-			return nil, false
+		if #getMembers() == 0 then
+			return nil, false, "Left"
+		end
+		local alive = getAlive()
+		if #alive == 0 then
+			return nil, false, "Wiped"
 		end
 
 		local now = os.clock()
-		local continueVotes, backVotes, voters = count(doors, members)
+		local continueVotes, backVotes, voters = count(doors, alive)
 		local voted = continueVotes + backVotes
 		local everyone = voters > 0 and voted == voters
 		local tie = everyone and continueVotes == backVotes
@@ -2302,16 +2699,16 @@ function VoteManager.collect(doors, getMembers: () -> { Player }, publish: Publi
 			countdown = Config.VoteConfirmSeconds - (now - leaderSince)
 			if countdown <= 0 then
 				publish(continueVotes, backVotes, voters, -1, false)
-				return leader, false
+				return leader, false, "Decided"
 			end
 		end
 
 		if firstVoteAt and now - firstVoteAt >= Config.VoteTimeoutSeconds then
 			publish(continueVotes, backVotes, voters, -1, false)
 			if continueVotes == backVotes then
-				return if random:NextNumber() < 0.5 then "Continue" else "Back", true
+				return if random:NextNumber() < 0.5 then "Continue" else "Back", true, "Decided"
 			end
-			return if continueVotes > backVotes then "Continue" else "Back", false
+			return if continueVotes > backVotes then "Continue" else "Back", false, "Decided"
 		end
 
 		publish(continueVotes, backVotes, voters, if countdown >= 0 then math.ceil(countdown) else -1, tie)
@@ -2325,19 +2722,22 @@ return VoteManager
       </Item>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="32">
+  <Item class="StarterPlayer" referent="33">
     <Properties>
       <string name="Name">StarterPlayer</string>
+      <token name="CameraMode">1</token>
+      <float name="CharacterWalkSpeed">16</float>
+      <bool name="EnableMouseLockOption">false</bool>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="33">
+    <Item class="StarterPlayerScripts" referent="34">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="Folder" referent="34">
+      <Item class="Folder" referent="35">
         <Properties>
           <string name="Name">Client</string>
         </Properties>
-        <Item class="LocalScript" referent="35">
+        <Item class="LocalScript" referent="36">
           <Properties>
             <string name="Name">HUD</string>
             <string name="Source"><![CDATA[-- Player HUD.
@@ -2350,6 +2750,7 @@ return VoteManager
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Net = require(ReplicatedStorage.Shared.Net)
@@ -2432,9 +2833,16 @@ local stationLabel = text(gameHud, "Station", {
 	Size = UDim2.fromOffset(340, 40),
 	TextXAlignment = Enum.TextXAlignment.Right,
 })
-local ruleLabel = text(gameHud, "Rule", {
+local checkpointLabel = text(gameHud, "Checkpoint", {
 	AnchorPoint = Vector2.new(1, 0),
 	Position = UDim2.new(1, -20, 0, 144),
+	Size = UDim2.fromOffset(340, 22),
+	TextXAlignment = Enum.TextXAlignment.Right,
+	TextColor3 = GREEN,
+})
+local ruleLabel = text(gameHud, "Rule", {
+	AnchorPoint = Vector2.new(1, 0),
+	Position = UDim2.new(1, -20, 0, 170),
 	Size = UDim2.fromOffset(460, 22),
 	TextXAlignment = Enum.TextXAlignment.Right,
 	TextColor3 = Color3.fromRGB(190, 190, 195),
@@ -2499,6 +2907,9 @@ local startButton = button(hostControls, "Start", {
 	Size = UDim2.new(1, 0, 0, 40),
 	BackgroundColor3 = Color3.fromRGB(35, 120, 70),
 	Text = "Start now",
+	-- The camera is first person, which locks the mouse; a visible Modal button frees it so the
+	-- host can click the controls.
+	Modal = true,
 })
 
 -- ===== Messages and blackout =====
@@ -2545,12 +2956,16 @@ local function refresh()
 			return Strings.get(language, key, ...)
 		end
 
-		levelLabel.Text = string.format("Level %d · %s", attr("Level", 1), attr("LevelName", ""))
-		stationLabel.Text = t("HudStation", attr("Station", 0), attr("StationsPerLevel", Config.StationsPerLevel))
+		levelLabel.Text = t(if attr("Mood", "Calm") == "Horror" then "PhaseHorror" else "PhaseCalm")
+		stationLabel.Text = t("HudLevel", attr("Level", 1), attr("TotalLevels", Config.TotalLevels))
+		local checkpoint = attr("Checkpoint", 0)
+		checkpointLabel.Visible = checkpoint > 0
+		checkpointLabel.Text = t("HudCheckpoint", checkpoint)
 		ruleLabel.Text = t("Rule")
-		leaveButton.Text = t("LeaveRun")
+		leaveButton.Text = if UserInputService.TouchEnabled then t("LeaveRun") else t("LeaveRun") .. "  [L]"
 
-		votePanel.Visible = phase == "Station"
+		-- Dead players spectate instead of voting.
+		votePanel.Visible = phase == "Station" and not attr("Dead", false)
 		local continueVotes, backVotes = attr("VotesContinue", 0), attr("VotesBack", 0)
 		local voters, countdown = attr("Voters", 0), attr("VoteCountdown", -1)
 		continueLabel.Text = t("VoteContinue", continueVotes)
@@ -2625,6 +3040,8 @@ leaveButton.Activated:Connect(function()
 	lobbyAction:FireServer("LeaveRun")
 end)
 
+
+
 -- ===== Server moments =====
 
 local messageToken = 0
@@ -2648,6 +3065,354 @@ event.OnClientEvent:Connect(function(payload)
 		showMessage(payload.Text, payload.Duration or 3)
 	end
 end)
+
+-- First person locks the mouse on PC, so leaving also works from the keyboard: press L twice.
+local leaveArmedUntil = 0
+UserInputService.InputBegan:Connect(function(input, processed)
+	if processed or input.KeyCode ~= Enum.KeyCode.L or attr("Phase", "Lobby") == "Lobby" then
+		return
+	end
+	if os.clock() < leaveArmedUntil then
+		leaveArmedUntil = 0
+		lobbyAction:FireServer("LeaveRun")
+	else
+		leaveArmedUntil = os.clock() + 2
+		showMessage(Strings.get(attr("Language", "en"), "LeaveConfirm"), 2)
+	end
+end)
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="LocalScript" referent="37">
+          <Properties>
+            <string name="Name">Mood</string>
+            <string name="Source"><![CDATA[-- Local look of the world, from the player's "Mood" attribute:
+--   Lobby   bright, warm hall
+--   Calm    levels 1-5: a normal, bright, slightly cheerful station
+--   Horror  level 6 on: dark, cold and foggy, with a dim personal light so you can still see
+-- Lighting changes made here only affect this player, so groups never fight over the look.
+
+local Lighting = game:GetService("Lighting")
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+
+local player = Players.LocalPlayer
+
+local TWEEN = TweenInfo.new(2.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+
+local LOOKS = {
+	Lobby = {
+		Lighting = { Ambient = Color3.fromRGB(110, 108, 104), OutdoorAmbient = Color3.fromRGB(80, 80, 80), ExposureCompensation = 0.3 },
+		SubwayAir = { Density = 0.08, Haze = 0, Color = Color3.fromRGB(200, 195, 185), Decay = Color3.fromRGB(150, 145, 135) },
+		SubwayGrade = { Brightness = 0.02, Contrast = 0.05, Saturation = 0.1, TintColor = Color3.fromRGB(255, 250, 242) },
+		SubwayBloom = { Intensity = 0.4, Size = 24, Threshold = 1.6 },
+		PersonalLight = false,
+	},
+	Calm = {
+		Lighting = { Ambient = Color3.fromRGB(120, 118, 112), OutdoorAmbient = Color3.fromRGB(80, 80, 80), ExposureCompensation = 0.35 },
+		SubwayAir = { Density = 0.1, Haze = 0, Color = Color3.fromRGB(205, 200, 190), Decay = Color3.fromRGB(160, 155, 145) },
+		SubwayGrade = { Brightness = 0.03, Contrast = 0.06, Saturation = 0.2, TintColor = Color3.fromRGB(255, 248, 236) },
+		SubwayBloom = { Intensity = 0.5, Size = 24, Threshold = 1.5 },
+		PersonalLight = false,
+	},
+	Horror = {
+		Lighting = { Ambient = Color3.fromRGB(40, 40, 48), OutdoorAmbient = Color3.fromRGB(10, 10, 12), ExposureCompensation = 0 },
+		SubwayAir = { Density = 0.32, Haze = 1.6, Color = Color3.fromRGB(22, 22, 28), Decay = Color3.fromRGB(12, 12, 15) },
+		SubwayGrade = { Brightness = -0.02, Contrast = 0.18, Saturation = -0.4, TintColor = Color3.fromRGB(222, 230, 242) },
+		SubwayBloom = { Intensity = 0.8, Size = 30, Threshold = 1.3 },
+		PersonalLight = true,
+	},
+}
+
+local personalLight: PointLight? = nil
+
+local function updatePersonalLight(enabled: boolean)
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if not root then
+		return
+	end
+	local light = personalLight
+	if not light or light.Parent ~= root then
+		light = Instance.new("PointLight")
+		light.Name = "PersonalLight"
+		light.Color = Color3.fromRGB(200, 210, 230)
+		light.Range = 14
+		light.Brightness = 0.7
+		light.Shadows = false
+		light.Parent = root
+		personalLight = light
+	end
+	light.Enabled = enabled
+end
+
+local function apply()
+	local look = LOOKS[player:GetAttribute("Mood") or "Lobby"] or LOOKS.Lobby
+	TweenService:Create(Lighting, TWEEN, look.Lighting):Play()
+	for name, goal in look do
+		local instance = Lighting:FindFirstChild(name)
+		if instance and type(goal) == "table" then
+			TweenService:Create(instance, TWEEN, goal):Play()
+		end
+	end
+	updatePersonalLight(look.PersonalLight)
+end
+
+player:GetAttributeChangedSignal("Mood"):Connect(apply)
+player.CharacterAdded:Connect(function(character)
+	character:WaitForChild("HumanoidRootPart", 10)
+	apply()
+end)
+-- The effects are created by the server; wait for them before the first look.
+Lighting:WaitForChild("SubwayAir", 10)
+Lighting:WaitForChild("SubwayGrade", 10)
+Lighting:WaitForChild("SubwayBloom", 10)
+apply()
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="LocalScript" referent="38">
+          <Properties>
+            <string name="Name">Spectate</string>
+            <string name="Source"><![CDATA[-- When you die mid-game you stay dead and watch your living teammates, in third person, until
+-- the whole group is dead (then everyone respawns at level 1). Tap the arrows or press Q / E to
+-- switch who you watch.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+
+local Strings = require(ReplicatedStorage.Shared.Strings)
+
+local player = Players.LocalPlayer
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "Spectate"
+gui.ResetOnSpawn = false
+gui.Enabled = false
+
+local panel = Instance.new("Frame")
+panel.AnchorPoint = Vector2.new(0.5, 0)
+panel.Position = UDim2.new(0.5, 0, 0, 70)
+panel.Size = UDim2.fromOffset(460, 76)
+panel.BackgroundColor3 = Color3.fromRGB(16, 16, 20)
+panel.BackgroundTransparency = 0.2
+panel.Parent = gui
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 10)
+corner.Parent = panel
+
+local function label(position: UDim2, size: UDim2, color: Color3): TextLabel
+	local text = Instance.new("TextLabel")
+	text.BackgroundTransparency = 1
+	text.Position = position
+	text.Size = size
+	text.Font = Enum.Font.GothamBold
+	text.TextScaled = true
+	text.TextColor3 = color
+	text.Parent = panel
+	return text
+end
+local watching = label(UDim2.fromScale(0.14, 0.08), UDim2.fromScale(0.72, 0.5), Color3.fromRGB(230, 85, 75))
+local hint = label(UDim2.fromScale(0.14, 0.6), UDim2.fromScale(0.72, 0.32), Color3.fromRGB(200, 200, 205))
+
+local function arrow(text: string, x: number): TextButton
+	local button = Instance.new("TextButton")
+	button.Text = text
+	button.Position = UDim2.fromScale(x, 0.15)
+	button.Size = UDim2.fromScale(0.1, 0.7)
+	button.BackgroundColor3 = Color3.fromRGB(45, 45, 52)
+	button.TextColor3 = Color3.new(1, 1, 1)
+	button.Font = Enum.Font.GothamBold
+	button.TextScaled = true
+	button.Parent = panel
+	local round = Instance.new("UICorner")
+	round.CornerRadius = UDim.new(0, 8)
+	round.Parent = button
+	return button
+end
+local previous = arrow("<", 0.02)
+local nextButton = arrow(">", 0.88)
+
+gui.Parent = player:WaitForChild("PlayerGui")
+
+local index = 1
+
+local function teammates(): { Player }
+	local key = player:GetAttribute("SessionKey")
+	local list = {}
+	for _, other in Players:GetPlayers() do
+		local humanoid = other.Character and other.Character:FindFirstChildOfClass("Humanoid")
+		if other ~= player and other:GetAttribute("SessionKey") == key and humanoid and humanoid.Health > 0 then
+			table.insert(list, other)
+		end
+	end
+	return list
+end
+
+local function refresh()
+	local camera = Workspace.CurrentCamera
+	local dead = player:GetAttribute("Dead") == true and player:GetAttribute("Phase") ~= "Lobby"
+	gui.Enabled = dead
+
+	if not dead then
+		-- Back to normal first person on your own character.
+		player.CameraMode = Enum.CameraMode.LockFirstPerson
+		local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+		if humanoid then
+			camera.CameraSubject = humanoid
+		end
+		return
+	end
+
+	player.CameraMode = Enum.CameraMode.Classic
+	player.CameraMaxZoomDistance = 20
+	local language = player:GetAttribute("Language")
+	hint.Text = Strings.get(language, "SpectateHint")
+
+	local list = teammates()
+	if #list == 0 then
+		watching.Text = Strings.get(language, "Spectating", "...")
+		return
+	end
+	index = (index - 1) % #list + 1
+	local target = list[index]
+	watching.Text = Strings.get(language, "Spectating", target.DisplayName)
+	local humanoid = target.Character and target.Character:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		camera.CameraSubject = humanoid
+	end
+end
+
+previous.Activated:Connect(function()
+	index -= 1
+	refresh()
+end)
+nextButton.Activated:Connect(function()
+	index += 1
+	refresh()
+end)
+UserInputService.InputBegan:Connect(function(input, processed)
+	if processed or not gui.Enabled then
+		return
+	end
+	if input.KeyCode == Enum.KeyCode.Q then
+		index -= 1
+		refresh()
+	elseif input.KeyCode == Enum.KeyCode.E then
+		index += 1
+		refresh()
+	end
+end)
+
+player:GetAttributeChangedSignal("Dead"):Connect(refresh)
+player:GetAttributeChangedSignal("Phase"):Connect(refresh)
+player.CharacterAdded:Connect(function()
+	task.wait()
+	refresh()
+end)
+
+-- Re-check now and then: the teammate you watch may die too, or the stations may change.
+while true do
+	task.wait(1)
+	if gui.Enabled then
+		refresh()
+	end
+end
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="LocalScript" referent="39">
+          <Properties>
+            <string name="Name">Sprint</string>
+            <string name="Source"><![CDATA[-- Sprinting. PC: hold Shift. Mobile: a button on screen toggles between sprint and walk.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+
+local Config = require(ReplicatedStorage.Shared.Config)
+local Strings = require(ReplicatedStorage.Shared.Strings)
+
+local player = Players.LocalPlayer
+
+local shiftHeld = false
+local toggledOn = false
+
+local function language()
+	return if player:GetAttribute("Phase") == "Lobby" then "en" else player:GetAttribute("Language")
+end
+
+local function apply()
+	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		humanoid.WalkSpeed = if shiftHeld or toggledOn then Config.SprintSpeed else Config.WalkSpeed
+	end
+end
+
+UserInputService.InputBegan:Connect(function(input)
+	-- Shift can arrive marked as "processed" by Roblox's own controls, so only skip typing.
+	if UserInputService:GetFocusedTextBox() then
+		return
+	end
+	if input.KeyCode == Enum.KeyCode.LeftShift or input.KeyCode == Enum.KeyCode.RightShift then
+		shiftHeld = true
+		apply()
+	end
+end)
+UserInputService.InputEnded:Connect(function(input)
+	if input.KeyCode == Enum.KeyCode.LeftShift or input.KeyCode == Enum.KeyCode.RightShift then
+		shiftHeld = false
+		apply()
+	end
+end)
+player.CharacterAdded:Connect(function(character)
+	character:WaitForChild("Humanoid", 10)
+	apply()
+end)
+
+-- Mobile button, just above the jump button.
+if UserInputService.TouchEnabled then
+	local gui = Instance.new("ScreenGui")
+	gui.Name = "SprintButton"
+	gui.ResetOnSpawn = false
+
+	local button = Instance.new("TextButton")
+	button.AnchorPoint = Vector2.new(1, 1)
+	button.Position = UDim2.new(1, -30, 1, -170)
+	button.Size = UDim2.fromOffset(84, 84)
+	button.BackgroundColor3 = Color3.fromRGB(30, 30, 36)
+	button.BackgroundTransparency = 0.3
+	button.TextColor3 = Color3.new(1, 1, 1)
+	button.Font = Enum.Font.GothamBold
+	button.TextScaled = true
+	button.Parent = gui
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0.5, 0)
+	corner.Parent = button
+	local padding = Instance.new("UIPadding")
+	padding.PaddingLeft = UDim.new(0.15, 0)
+	padding.PaddingRight = UDim.new(0.15, 0)
+	padding.Parent = button
+
+	local function refresh()
+		-- The button shows what tapping it will do.
+		button.Text = Strings.get(language(), if toggledOn then "Walk" else "Sprint")
+		button.BackgroundColor3 = if toggledOn then Color3.fromRGB(200, 150, 20) else Color3.fromRGB(30, 30, 36)
+	end
+
+	button.Activated:Connect(function()
+		toggledOn = not toggledOn
+		refresh()
+		apply()
+	end)
+	player:GetAttributeChangedSignal("Language"):Connect(refresh)
+	player:GetAttributeChangedSignal("Phase"):Connect(refresh)
+	refresh()
+	gui.Parent = player:WaitForChild("PlayerGui")
+end
 ]]></string>
           </Properties>
         </Item>

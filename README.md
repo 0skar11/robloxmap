@@ -3,71 +3,73 @@
 لعبة رعب وغموض على روبلوكس: ركاب محبوسين في مترو بيلف في نفس المحطة.
 القاعدة: **لو المحطة طبيعية ← كمّل. لو فيها حاجة غلط ← ارجع.**
 
-النسخة دي هي خطوة 1 و 2 من خطة التنفيذ في الـ pitch، يعني نسخة بتتلعب:
+## اللي في اللعبة دلوقتي
 
-- **Lobby:** صالة تذاكر فيها 6 بوابات. تقف على بوابة مع صحابك، وأول واحد يقف هو الـ host: بيختار عدد اللاعبين (من 1 لـ 10) واللغة (عربي أو English).
-- **كل مجموعة ليها محطة لوحدها:** بتتبني بلغة المجموعة دي بس. الـ lobby نفسه دايمًا English.
-- **نظام المحطات والتصويت:** محطة طولها 200 stud، فيها قطر من 3 عربيات، باب "كمّل" وباب "ارجع"، عداد محطات، وتصويت الأغلبية.
-- **نظام الـ anomalies:** كل anomaly في ModuleScript لوحده فيه `Apply` و `Reset`. فيه 10 جاهزين.
-- **جرافيك مظلم:** إضاءة Future، ضباب، ألوان باهتة، لمبات بايظة، والركاب بيلبسوا avatars حقيقية عشوائية من روبلوكس.
+- **Lobby منور:** صالة تذاكر فيها 6 بوابات، ودايمًا English.
+- **مجموعات من 1 لـ 10:** أول واحد يقف على بوابة هو الـ host، وبيختار عدد اللاعبين واللغة (العربية / English) لمجموعته بس.
+- **كل مجموعة في عالم لوحدها:** في اللعبة الحقيقية (بعد Publish)، البوابة بتنقل المجموعة لسيرفر خاص بيها. في Studio كله بيشتغل في سيرفر واحد، بس كل مجموعة ليها نسخة محطة لوحدها.
+- **15 Level:**
+  - **Level 1 لـ 5:** محطة عادية منورة ومبهجة. فيها تغييرات بسيطة تدور عليها، ومفيش رعب.
+  - **Level 5 = Checkpoint:** بيظهر على الشاشة. بعده لو غلطتوا بترجعوا لـ Level 6 مش Level 1.
+  - **من Level 6:** النور بيطفي، والتلميحات بتظهر (الجرنال والورد والموبايل)، والحاجات المرعبة بتبدأ.
+- **الموت:** "The Follower" (شخص أسود من غير ملامح) بيمشي ناحيتك، ولو لمسك بتموت. اللي بيموت بيتفرج على صحابه، ولما المجموعة كلها تموت كلكم بترجعوا Level 1.
+- **First person**، و **Shift** للجري على الكمبيوتر، وزرار **جري / مشي** على الموبايل.
+- **قطر واسع:** أبواب عريضة، ومفيش أعمدة في النص.
+- **الركاب** بيلبسوا avatars حقيقية عشوائية من روبلوكس.
 
-## أسهل طريقة تجربها (من غير أي برامج زيادة)
+## تجربها إزاي
 
-1. نزّل ملف [`EndlessSubway.rbxlx`](EndlessSubway.rbxlx).
-2. افتح Roblox Studio ← **File ← Open from File** واختار الملف.
-3. دوس **Play**. الـ lobby بيتبني أوتوماتيك وهتلاقي نفسك فيه.
-4. اقف على بوابة. لو بتجرب لوحدك: دوس **Start now** (أو خلي العدد 1).
+1. نزّل [`EndlessSubway.rbxlx`](EndlessSubway.rbxlx).
+2. افتحه في Roblox Studio: **File ← Open from File**.
+3. دوس **Play**، واقف على بوابة. لو لوحدك: دوس **Start now**.
 
-> في وضع التعديل (قبل Play) الـ Workspace هيبان فاضي. ده طبيعي: الكود هو اللي بيبني كل حاجة.
+> قبل Play الـ Workspace هيبان فاضي. ده طبيعي: الكود هو اللي بيبني كل حاجة.
 
-**تجربة الـ Multiplayer:** من تبويب **Test** اختار **Clients and Servers** وعدد لاعبين 2 أو 3، ودوس Start.
+**تجربة مجموعة:** من تبويب **Test** اختار **Clients and Servers** بـ 2 أو 3 لاعبين.
 
-## الـ Lobby
+**عشان كل مجموعة تروح سيرفر لوحدها:** اعمل **File ← Publish to Roblox** والعب من روبلوكس نفسه، مش من Studio. ولو عايز كله يفضل في سيرفر واحد، خلي `Config.UseSeparateServers = false`.
 
-- اقف على بوابة عشان تدخل مجموعتها، وانزل من عليها عشان تخرج.
-- أول واحد على البوابة هو الـ host: بيختار **Group size** (من 1 لـ 10) و **Language** (العربية / English)، وممكن يدوس **Start now** من غير ما يستنى.
-- لما البوابة تتملي (أو الـ host يدوس Start now) بيبدأ عد 5 ثواني، وبعدها المجموعة كلها بتروح محطتها.
-- لو البوابة مليانة، دوّر على بوابة تانية.
-- جوه اللعبة فيه زرار **ارجع للوبي / Back to lobby**.
+## التحكم
 
-## إزاي بتتلعب
+| | كمبيوتر | موبايل |
+|---|---|---|
+| جري | اضغط Shift باستمرار | زرار جري / مشي على الشاشة |
+| الرجوع للوبي | دوس L مرتين | زرار "ارجع للوبي" |
+| تغيير اللي بتتفرج عليه (لو مت) | Q / E أو الأسهم | الأسهم |
 
-1. القطر بيقف والأبواب بتفتح. انزلوا على الرصيف وبصّوا على كل حاجة.
-2. كل لاعب يقف على المنطقة الملونة قدام الباب اللي عايزه (أخضر = كمّل، أحمر = ارجع).
-3. لما الكل يقف وتبقى فيه أغلبية واضحة، بيبدأ عد تنازلي 3 ثواني. لو حد اتحرك العد بيبطل.
-   - تعادل؟ لازم تتفقوا. بعد 45 ثانية القرعة بتختار.
-4. صح ← العداد يزيد. غلط ← العداد يرجع صفر (أول الـ Level).
-5. 5 محطات صح = Level خلص. فيه 3 Levels. بعد آخر Level بترجعوا للـ lobby.
+## الـ anomalies
 
-أول محطة في كل Level دايمًا طبيعية، عشان تحفظوا شكل المحطة.
-
-## الـ 10 anomalies
+**بسيطة (من Level 1):**
 
 | الملف | اللي بيتغير |
 |---|---|
-| `StoppedClock` | الساعة واقفة ومش بتعد |
-| `MissingPassenger` | راكب من الركاب اختفى |
-| `NamedPoster` | إعلان عليه اسم لاعب من اللاعبين |
-| `ExtraPassenger` | شخص أسود من غير ملامح واقف ووشه للحيطة |
-| `FlickeringLight` | لمبة في السقف بتنور وتطفي |
-| `WrongLineNumber` | رقم الخط مكتوب 41 بدل 14 |
-| `MissingPillar` | عمود من الأعمدة مش موجود |
-| `TurnedBench` | الكرسي الفاضي متلف ناحية الحيطة |
-| `ExtraMissedCall` | الموبايل اللي على الأرض بقى فيه 13 مكالمة فايتة بدل 12 |
-| `StaringPassengers` | كل الركاب بيلفوا راسهم ويبصّوا عليك |
+| `StoppedClock` | الساعة واقفة |
+| `MissingPassenger` | راكب اختفى |
+| `WrongLineNumber` | رقم الخط 41 بدل 14 |
+| `MissingPillar` | عمود مش موجود |
+| `TurnedBench` | كرسي فاضي متلف ناحية الحيطة |
 
-والتلميحات بتاعة القصة موجودة في المحطة الطبيعية: جرنال تاريخه بكرة، ورد جنب العمود، وموبايل فيه "12 مكالمة فايتة".
+**مرعبة (من Level 6):**
 
-## إضافة anomaly جديد (في دقايق)
+| الملف | اللي بيحصل |
+|---|---|
+| `TheFollower` | شخص أسود بيمشي ناحيتك، ولو لمسك تموت |
+| `StaringPassengers` | الركاب بيلفوا راسهم ويبصوا عليك |
+| `FlickeringLight` | لمبة بتنور وتطفي |
+| `ExtraPassenger` | شخص من غير ملامح واقف ووشه للحيطة |
+| `NamedPoster` | إعلان عليه اسم واحد منكم |
+| `ExtraMissedCall` | الموبايل بقى فيه 13 مكالمة فايتة بدل 12 |
 
-اعمل ModuleScript جديد جوه `ServerScriptService/Server/Anomalies` (أو ملف `.luau` جديد في `src/server/Anomalies`):
+## إضافة anomaly جديد
+
+اعمل ملف جديد في `src/server/Anomalies`:
 
 ```lua
--- اسم المحطة بقى مكتوب غلط.
 return {
 	Name = "WrongStationName",
+	Horror = false, -- true = يظهر من Level 6 بس
 	Apply = function(ctx)
-		ctx:Set(ctx.Refs.StationName, "Text", "محطة النوم")
+		ctx:Set(ctx.Refs.StationName, "Text", "???")
 	end,
 	Reset = function(ctx)
 		ctx:Restore()
@@ -75,46 +77,48 @@ return {
 }
 ```
 
-اللعبة بتلاقيه لوحدها. لو فيه كلام، حطه في `src/shared/Strings.luau` بالعربي والإنجليزي واستخدم `ctx:Text("Key")`. أي تغيير بتعمله عن طريق `ctx` بيترجع زي ما كان أوتوماتيك في `ctx:Restore()`:
+أي تغيير بتعمله عن طريق `ctx` بيرجع زي ما كان أوتوماتيك:
 
-- `ctx:Set(instance, "Property", value)`: غيّر خاصية (و `Parent = nil` بيخفي الحاجة)
+- `ctx:Set(instance, "Property", value)`
 - `ctx:SetAttribute(instance, "Name", value)`
-- `ctx:Pivot(model, cframe)`: حرّك Model
-- `ctx:Add(instance)`: ضيف حاجة جديدة (بتتمسح بعد المحطة)
-- `ctx:Connect(signal, fn)` و `ctx:Spawn(fn)`: لأي حاجة بتتحرك باستمرار
+- `ctx:Pivot(model, cframe)`
+- `ctx:Add(instance)`: حاجة جديدة بتتمسح بعد المحطة
+- `ctx:Connect(signal, fn)` و `ctx:Spawn(fn)`: لأي حاجة بتتحرك
 - `ctx:Pick(list)`: اختيار عشوائي
+- `ctx:Text("Key", ...)`: كلام بلغة المجموعة. الكلام نفسه في `src/shared/Strings.luau` بالعربي والإنجليزي.
+- `ctx.Refs`: فيه `Lights`, `Posters`, `Passengers`, `Benches`, `Pillars`, `Clock`, `ClockLabel`, `LineBadge`, `StationName`, `PhoneLabel`, `NewspaperLabel`، و `At(x, y, z)` بيحوّل مكان في المحطة لمكان في العالم.
 
-الحاجات اللي ممكن تغيّرها موجودة في `ctx.Refs`: `Lights`, `Posters`, `Passengers`, `Benches`, `Pillars`, `Clock`, `ClockLabel`, `LineBadge`, `StationName`, `PhoneLabel`, `NewspaperLabel`. و `ctx.Refs.At(x, y, z)` بيحوّل مكان في المحطة لمكان في العالم.
+## الإعدادات (`src/shared/Config.luau`)
 
-## الإعدادات
-
-كل الأرقام في `src/shared/Config.luau`: عدد المحطات في الـ Level، نسبة ظهور الـ anomalies، وقت التصويت، عدد البوابات وأقل وأكبر عدد لاعبين، وإضاءة كل Level.
-لو عايز الركاب بالشكل البسيط بدل الـ avatars: خلي `Config.RandomAvatarNpcs = false`.
-
-**عدد اللاعبين في السيرفر:** كل المجموعات في نفس السيرفر. لو عايز أكتر من الحد الافتراضي، غيّره من Game Settings في Studio بعد ما تعمل Publish.
-خلي `Config.Debug = true` وانت بتجرب، وهيكتب في الـ Output اسم الـ anomaly اللي في المحطة.
+- **الـ Levels:** `TotalLevels` و `Checkpoints` و `HorrorStartsAtLevel`.
+- **الـ anomalies:** `AnomalyChance`، و `CalmAnomalies` (لو false، Level 1 لـ 5 مفيهاش أي تغيير خالص).
+- **اللوبي:** `MinPartySize` و `MaxPartySize` و `LobbyPads`.
+- **السيرفرات:** `UseSeparateServers`.
+- **الحركة:** `WalkSpeed` و `SprintSpeed`.
+- **الركاب:** `RandomAvatarNpcs` (لو false، الركاب بالشكل البسيط).
+- **التجربة:** `Debug = true` بيكتب في Output اسم الـ anomaly اللي في كل محطة.
 
 ## للمطورين (Rojo)
 
 ```sh
-rojo serve                                       # sync مباشر مع Studio
-rojo build default.project.json -o EndlessSubway.rbxlx   # بعد أي تعديل، عشان الملف الجاهز يتحدّث
+rojo serve                                                # sync مباشر مع Studio
+rojo build default.project.json -o EndlessSubway.rbxlx   # بعد أي تعديل
 ```
 
 ```
 src/
-  shared/   Config, Net, Strings (AR/EN)      → ReplicatedStorage.Shared
-  server/   Main, Graphics,                   → ServerScriptService.Server
-            LobbyBuilder, LobbyManager,       (اللوبي والبوابات)
-            SessionManager, GameLoop,         (محطة ولوب لكل مجموعة)
-            MapBuilder, Build, Npc, Mannequin,
-            VoteManager, AnomalyContext,
-            AnomalyRegistry, Anomalies/*
-  client/   HUD                               → StarterPlayerScripts.Client
+  shared/  Config, Net, Strings (AR/EN)            → ReplicatedStorage.Shared
+  server/  Main             يختار: سيرفر lobby ولا سيرفر لعب
+           LobbyBuilder, LobbyManager    اللوبي والبوابات
+           SessionManager                المجموعات، والنقل بين السيرفرات، والموت
+           GameLoop, VoteManager         الـ Levels والتصويت
+           MapBuilder, Build, Npc, Mannequin, Graphics
+           AnomalyContext, AnomalyRegistry, Anomalies/*
+  client/  HUD, Mood (الإضاءة), Sprint, Spectate   → StarterPlayerScripts.Client
 ```
 
-## اللي لسه (خطوات 3 لـ 5 في الخطة)
+## اللي لسه
 
-- **3. الانتقال بين الـ Levels:** دلوقتي Level 2 و 3 بيغيروا الإضاءة بس. لسه مشهد الحادثة، والمحطة المتكسرة، والظل، والمحطة الغرقانة، والحيطة التذكارية في النهاية.
-- **4. الجو:** أصوات، إعلان المحطة، jumpscares.
-- **5. المحتوى والنشر:** لحد 30 anomaly، Badges، Thumbnail.
+- **الأصوات:** إعلان المحطة، وأصوات رعب، وjumpscares.
+- **مشهد النهاية:** باب النور، والحيطة التذكارية بأسماء اللاعبين.
+- **المحتوى:** anomalies أكتر (لحد 30)، وBadges، وThumbnail.

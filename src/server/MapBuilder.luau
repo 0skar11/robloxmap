@@ -4,7 +4,7 @@
 --
 -- Layout (studs, relative to the station origin). The platform runs along X, the track is on +Z.
 --   Platform floor      X -100..100, Z -10..10, top at Y 1
---   Train car (open)    X -20..20,   Z 10..19, doors on the platform side (Z 11)
+--   Train car (open)    X -20..20,   Z 10..24 (wide), doors on the platform side (Z 11)
 --   Closed cars         X -62..-22 and 22..62
 --   CONTINUE door       +X end of the platform
 --   GO BACK door        -X end of the platform
@@ -70,11 +70,11 @@ local function buildShell(map: Folder)
 	block(shell, "BackWall", Vector3.new(length + 2, 20, 1), at(0, 6, -10.5), COLORS.Wall, Enum.Material.CeramicTiles)
 	block(shell, "WallStripe", Vector3.new(length, 1.2, 0.1), at(0, 2.6, -9.95), COLORS.WallStripe, Enum.Material.CeramicTiles)
 	block(shell, "WallGrime", Vector3.new(length, 3, 0.1), at(0, 14.5, -9.95), COLORS.WallGrime, Enum.Material.Concrete)
-	block(shell, "TunnelWall", Vector3.new(length + 2, 20, 1), at(0, 6, 21.5), COLORS.Dark, Enum.Material.Concrete)
-	block(shell, "Ceiling", Vector3.new(length + 2, 1, 33), at(0, 16.5, 5.5), COLORS.Ceiling, Enum.Material.Concrete)
-	block(shell, "TrackBed", Vector3.new(length, 1, 11), at(0, -3.5, 15.5), COLORS.Dark, Enum.Material.Slate)
-	block(shell, "RailNear", Vector3.new(length, 0.4, 0.4), at(0, -2.8, 13.5), Color3.fromRGB(90, 90, 95), Enum.Material.Metal)
-	block(shell, "RailFar", Vector3.new(length, 0.4, 0.4), at(0, -2.8, 17.5), Color3.fromRGB(90, 90, 95), Enum.Material.Metal)
+	block(shell, "TunnelWall", Vector3.new(length + 2, 20, 1), at(0, 6, 27.5), COLORS.Dark, Enum.Material.Concrete)
+	block(shell, "Ceiling", Vector3.new(length + 2, 1, 39), at(0, 16.5, 8.5), COLORS.Ceiling, Enum.Material.Concrete)
+	block(shell, "TrackBed", Vector3.new(length, 1, 17), at(0, -3.5, 18.5), COLORS.Dark, Enum.Material.Slate)
+	block(shell, "RailNear", Vector3.new(length, 0.4, 0.4), at(0, -2.8, 15.5), Color3.fromRGB(90, 90, 95), Enum.Material.Metal)
+	block(shell, "RailFar", Vector3.new(length, 0.4, 0.4), at(0, -2.8, 20.5), Color3.fromRGB(90, 90, 95), Enum.Material.Metal)
 
 	-- Pipes along the ceiling.
 	for _, z in { -8.2, -7.2 } do
@@ -100,7 +100,7 @@ local function buildExitDoor(map: Folder, kind: "Continue" | "Back", language: s
 	model.Name = kind .. "Door"
 	model.Parent = map
 
-	block(model, "EndWall", Vector3.new(1, 20, 33), at(wallX, 6, 5.5), COLORS.Wall, Enum.Material.CeramicTiles)
+	block(model, "EndWall", Vector3.new(1, 20, 39), at(wallX, 6, 8.5), COLORS.Wall, Enum.Material.CeramicTiles)
 	local door = block(model, "Door", Vector3.new(0.4, 8, 5), at(doorX, 5, 0), COLORS.Dark, Enum.Material.Metal)
 	block(model, "Frame", Vector3.new(0.3, 9, 6), at(sign * (HALF_LENGTH - 0.05), 5.5, 0), color)
 
@@ -128,61 +128,68 @@ local function buildClosedCar(map: Folder, centerX: number)
 	car.Name = "ClosedCar"
 	car.Parent = map
 
-	block(car, "Body", Vector3.new(40, 10, 8), at(centerX, 5.5, 15), COLORS.CarBody, Enum.Material.Metal)
-	block(car, "Underbody", Vector3.new(40, 4, 7), at(centerX, -1.5, 15), COLORS.Dark, Enum.Material.Metal)
+	block(car, "Body", Vector3.new(40, 11, 14), at(centerX, 6.5, 18), COLORS.CarBody, Enum.Material.Metal)
+	block(car, "Underbody", Vector3.new(40, 4, 13), at(centerX, -1.5, 18), COLORS.Dark, Enum.Material.Metal)
 	block(car, "Stripe", Vector3.new(40, 0.6, 0.1), at(centerX, 3.2, 10.95), COLORS.CarStripe)
 	-- Dark windows: nobody seems to be inside. Mostly.
 	for offset = -15, 15, 10 do
-		block(car, "Window", Vector3.new(6, 3, 0.1), at(centerX + offset, 6.5, 10.95), Color3.fromRGB(8, 10, 14), Enum.Material.Glass)
+		block(car, "Window", Vector3.new(6, 3, 0.1), at(centerX + offset, 7, 10.95), Color3.fromRGB(8, 10, 14), Enum.Material.Glass)
 	end
 	for _, offset in { -10, 10 } do
-		block(car, "DoorOutline", Vector3.new(5, 7, 0.1), at(centerX + offset, 4.5, 10.94), Color3.fromRGB(110, 115, 122), Enum.Material.Metal)
+		block(car, "DoorOutline", Vector3.new(7, 8, 0.1), at(centerX + offset, 5, 10.94), Color3.fromRGB(110, 115, 122), Enum.Material.Metal)
 	end
 end
 
+-- The open car is wide and clear: wide doors, seats only along the far wall, and grab bars up at
+-- the roof instead of poles in the way.
 local function buildCar(map: Folder)
 	local car = Instance.new("Model")
 	car.Name = "TrainCar"
 	car.Parent = map
 
-	block(car, "Floor", Vector3.new(40, 4, 9), at(0, -1, 14.5), Color3.fromRGB(60, 60, 64), Enum.Material.DiamondPlate)
-	block(car, "Roof", Vector3.new(40, 1, 9), at(0, 10.5, 14.5), COLORS.CarBody, Enum.Material.Metal)
-	block(car, "FarWall", Vector3.new(40, 9, 0.5), at(0, 5.5, 18.75), COLORS.CarBody, Enum.Material.Metal)
-	block(car, "Window", Vector3.new(36, 2.5, 0.1), at(0, 6.5, 18.45), Color3.fromRGB(6, 8, 12), Enum.Material.Glass)
-	block(car, "Stripe", Vector3.new(40, 0.6, 0.1), at(0, 8.4, 18.45), COLORS.CarStripe)
-	block(car, "EndWallWest", Vector3.new(0.5, 9, 9), at(-19.75, 5.5, 14.5), COLORS.CarBody, Enum.Material.Metal)
-	block(car, "EndWallEast", Vector3.new(0.5, 9, 9), at(19.75, 5.5, 14.5), COLORS.CarBody, Enum.Material.Metal)
+	block(car, "Floor", Vector3.new(40, 4, 14), at(0, -1, 17), Color3.fromRGB(70, 70, 76), Enum.Material.DiamondPlate)
+	block(car, "Roof", Vector3.new(40, 1, 14), at(0, 12.5, 17), COLORS.CarBody, Enum.Material.Metal)
+	block(car, "FarWall", Vector3.new(40, 11, 0.5), at(0, 6.5, 24.25), COLORS.CarBody, Enum.Material.Metal)
+	block(car, "Window", Vector3.new(36, 3, 0.1), at(0, 7.5, 23.95), Color3.fromRGB(6, 8, 12), Enum.Material.Glass)
+	block(car, "Stripe", Vector3.new(40, 0.6, 0.1), at(0, 10, 23.95), COLORS.CarStripe)
+	block(car, "EndWallWest", Vector3.new(0.5, 11, 14), at(-19.75, 6.5, 17), COLORS.CarBody, Enum.Material.Metal)
+	block(car, "EndWallEast", Vector3.new(0.5, 11, 14), at(19.75, 6.5, 17), COLORS.CarBody, Enum.Material.Metal)
 
-	-- Platform side: three wall segments with two door openings (X -12.5..-7.5 and 7.5..12.5).
-	block(car, "SideWallWest", Vector3.new(7.5, 9, 0.5), at(-16.25, 5.5, 11.25), COLORS.CarBody, Enum.Material.Metal)
-	block(car, "SideWallMiddle", Vector3.new(15, 9, 0.5), at(0, 5.5, 11.25), COLORS.CarBody, Enum.Material.Metal)
-	block(car, "SideWallEast", Vector3.new(7.5, 9, 0.5), at(16.25, 5.5, 11.25), COLORS.CarBody, Enum.Material.Metal)
+	-- Platform side: three wall segments with two wide door openings (X -13.5..-6.5 and 6.5..13.5).
+	block(car, "SideWallWest", Vector3.new(6.5, 11, 0.5), at(-16.75, 6.5, 11.25), COLORS.CarBody, Enum.Material.Metal)
+	block(car, "SideWallMiddle", Vector3.new(13, 11, 0.5), at(0, 6.5, 11.25), COLORS.CarBody, Enum.Material.Metal)
+	block(car, "SideWallEast", Vector3.new(6.5, 11, 0.5), at(16.75, 6.5, 11.25), COLORS.CarBody, Enum.Material.Metal)
 
 	local doorPanels = {}
 	for _, centerX in { -10, 10 } do
-		block(car, "DoorHeader", Vector3.new(5, 2, 0.5), at(centerX, 9, 11.25), COLORS.CarBody, Enum.Material.Metal)
+		block(car, "DoorHeader", Vector3.new(7, 3, 0.5), at(centerX, 10.5, 11.25), COLORS.CarBody, Enum.Material.Metal)
 		for _, side in { -1, 1 } do
-			local closed = at(centerX + side * 1.25, 4.5, 11.75)
-			local open = at(centerX + side * 3.6, 4.5, 11.75)
-			local panel = block(car, "DoorPanel", Vector3.new(2.5, 7, 0.3), closed, Color3.fromRGB(130, 135, 142), Enum.Material.Metal)
+			local closed = at(centerX + side * 1.75, 5, 11.75)
+			local open = at(centerX + side * 5.3, 5, 11.75)
+			local panel = block(car, "DoorPanel", Vector3.new(3.5, 8, 0.3), closed, Color3.fromRGB(130, 135, 142), Enum.Material.Metal)
 			table.insert(doorPanels, { Part = panel, Closed = closed, Open = open })
 		end
 	end
 
-	-- Seats along the far wall, poles down the middle, a cold light strip on the roof.
 	for _, centerX in { -10, 10 } do
-		block(car, "Seat", Vector3.new(14, 0.6, 1.8), at(centerX, 2.6, 17.6), COLORS.CarSeat, Enum.Material.Fabric)
-		block(car, "SeatBack", Vector3.new(14, 2.5, 0.4), at(centerX, 4, 18.3), COLORS.CarSeat, Enum.Material.Fabric)
+		block(car, "Seat", Vector3.new(14, 0.6, 1.8), at(centerX, 2.6, 22.9), COLORS.CarSeat, Enum.Material.Fabric)
+		block(car, "SeatBack", Vector3.new(14, 2.5, 0.4), at(centerX, 4, 23.8), COLORS.CarSeat, Enum.Material.Fabric)
 	end
-	for _, x in { -15, 0, 15 } do
-		local pole = block(car, "Pole", Vector3.new(9, 0.3, 0.3), at(x, 5.5, 14.5) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(170, 170, 175), Enum.Material.Metal)
-		pole.Shape = Enum.PartType.Cylinder
+	for _, z in { 14.5, 19.5 } do
+		local bar = block(car, "GrabBar", Vector3.new(36, 0.25, 0.25), at(0, 11.4, z), Color3.fromRGB(170, 170, 175), Enum.Material.Metal)
+		bar.Shape = Enum.PartType.Cylinder
+		bar.CanCollide = false
 	end
-	Build.ceilingLight(car, "LightStrip", Vector3.new(36, 0.2, 0.8), at(0, 9.9, 14.5), Color3.fromRGB(210, 225, 255), 0.7, 11)
+	for _, z in { 14.5, 19.5 } do
+		Build.ceilingLight(car, "LightStrip", Vector3.new(36, 0.2, 0.8), at(0, 11.9, z), Color3.fromRGB(235, 240, 255), 1.4, 14)
+	end
 
+	-- Where the group stands when the train stops: two rows, enough for 10 players.
 	local standPoints = {}
-	for x = -16, 16, 4 do
-		table.insert(standPoints, at(x, 4, 13.5))
+	for _, z in { 15, 18.5 } do
+		for x = -16, 16, 4 do
+			table.insert(standPoints, at(x, 4, z))
+		end
 	end
 
 	return car, doorPanels, standPoints
@@ -201,15 +208,19 @@ local function buildStation(map: Folder, refs, language: string)
 		table.insert(refs.Pillars, pillar)
 	end
 
-	-- Ceiling lights. Some are dead, which leaves pools of darkness along the platform.
-	local deadLights = { [-70] = true, [-30] = true, [50] = true, [90] = true }
+	-- Ceiling lights, plus a second row over the platform edge. In the dark half of the game some of
+	-- them die ("DiesInHorror"), which leaves pools of darkness along the platform.
+	local diesInHorror = { [-70] = true, [-30] = true, [50] = true, [90] = true }
 	refs.Lights = {}
 	for x = -90, 90, 20 do
-		if deadLights[x] then
-			block(station, "DeadLight", Vector3.new(8, 0.2, 1), at(x, 15.9, 0), Color3.fromRGB(60, 60, 58))
-		else
-			table.insert(refs.Lights, Build.ceilingLight(station, "Light", Vector3.new(8, 0.2, 1), at(x, 15.9, 0), COLORS.Light, 0.9, 16))
-		end
+		local fixture = Build.ceilingLight(station, "Light", Vector3.new(8, 0.2, 1), at(x, 15.9, 0), COLORS.Light, 1.8, 20)
+		fixture:SetAttribute("DiesInHorror", diesInHorror[x] == true)
+		table.insert(refs.Lights, fixture)
+	end
+	for x = -80, 80, 40 do
+		local fixture = Build.ceilingLight(station, "Light", Vector3.new(8, 0.2, 1), at(x, 15.9, 7), COLORS.Light, 1.8, 20)
+		fixture:SetAttribute("DiesInHorror", true)
+		table.insert(refs.Lights, fixture)
 	end
 
 	-- Benches against the back wall, facing the track.
@@ -283,13 +294,14 @@ local function buildStation(map: Folder, refs, language: string)
 		Npc.create("Passenger", "Sit", at(-70, 3, -8.1) * flip, Color3.fromRGB(60, 60, 60)),
 		Npc.create("Passenger", "Stand", at(-5, 3, -3) * flip, Color3.fromRGB(95, 95, 100)),
 		Npc.create("Passenger", "Stand", at(62, 3, 6) * flip, Color3.fromRGB(70, 40, 60)),
-		Npc.create("Passenger", "Sit", at(-10, 2.9, 17.4), Color3.fromRGB(120, 40, 45)),
+		Npc.create("Passenger", "Sit", at(-10, 2.9, 22.7), Color3.fromRGB(120, 40, 45)),
 	}
 	for _, passenger in refs.Passengers do
 		passenger.Parent = station
 	end
 
-	-- Hints at the twist. Nobody gets them the first time.
+	-- Hints at the twist. They only show up once the dark half begins (see GameLoop), and nobody
+	-- gets them the first time.
 	local newspaper = block(station, "Newspaper", Vector3.new(2, 0.05, 1.4), at(-10.8, 3.03, -8.2), Color3.fromRGB(225, 222, 210))
 	refs.NewspaperLabel = surfaceText(newspaper, Enum.NormalId.Top, Strings.get(language, "Newspaper", Strings.tomorrow(language)), {
 		Background = Color3.fromRGB(225, 222, 210),
@@ -321,12 +333,14 @@ local function buildStation(map: Folder, refs, language: string)
 	glow.Color = Color3.fromRGB(200, 220, 255)
 	glow.Parent = phone
 
+	refs.Hints = { newspaper, flowers, phone }
 	refs.Station = station
 end
 
 -- Builds one station at stationOrigin into Workspace and returns the references the game loop and
 -- anomalies use. refs.At(x, y, z) converts layout coordinates of this station to world space.
-function MapBuilder.build(stationOrigin: CFrame, name: string, language: string)
+-- withSpawn adds a spawn point in the train, for game servers that have no lobby.
+function MapBuilder.build(stationOrigin: CFrame, name: string, language: string, withSpawn: boolean?)
 	origin = stationOrigin
 
 	local existing = Workspace:FindFirstChild(name)
@@ -355,6 +369,19 @@ function MapBuilder.build(stationOrigin: CFrame, name: string, language: string)
 	buildClosedCar(map, 42)
 	refs.Car, refs.DoorPanels, refs.StandPoints = buildCar(map)
 	buildStation(map, refs, language)
+
+	if withSpawn then
+		local spawn = Instance.new("SpawnLocation")
+		spawn.Name = "TrainSpawn"
+		spawn.Size = Vector3.new(16, 0.1, 6)
+		spawn.CFrame = at(0, 1.05, 17)
+		spawn.Anchored = true
+		spawn.CanCollide = false
+		spawn.Transparency = 1
+		spawn.Neutral = true
+		spawn.Duration = 0
+		spawn.Parent = refs.Car
+	end
 
 	map.Parent = Workspace
 	return refs
