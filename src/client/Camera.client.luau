@@ -4,6 +4,7 @@
 --   Dead       third person, watching your living teammates until the whole group is dead
 --              (then everyone respawns at level 1). Arrows or Q / E switch who you watch.
 -- A screen that needs clicks (the tutorial) sets the local "UiOpen" attribute to show the cursor.
+-- PC: Ctrl frees the mouse in first person (to click buttons), and locks it again.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -103,10 +104,50 @@ local function setThirdPerson(enabled: boolean)
 	end
 end
 
+-- Ctrl toggle. A visible Modal button is what Roblox uses to let the mouse out of first person,
+-- so the toggle shows an invisible one.
+local mouseFree = false
+local freeGui = Instance.new("ScreenGui")
+freeGui.Name = "MouseToggle"
+freeGui.ResetOnSpawn = false
+local freeButton = Instance.new("TextButton")
+freeButton.Size = UDim2.fromOffset(1, 1)
+freeButton.BackgroundTransparency = 1
+freeButton.Text = ""
+freeButton.Modal = true
+freeButton.Visible = false
+freeButton.Parent = freeGui
+local freeHint = Instance.new("TextLabel")
+freeHint.AnchorPoint = Vector2.new(0.5, 1)
+freeHint.Position = UDim2.new(0.5, 0, 1, -110)
+freeHint.Size = UDim2.fromOffset(260, 24)
+freeHint.BackgroundTransparency = 1
+freeHint.Font = Enum.Font.GothamBold
+freeHint.TextScaled = true
+freeHint.TextColor3 = Color3.fromRGB(230, 230, 230)
+freeHint.TextStrokeTransparency = 0.5
+freeHint.Text = "Mouse free  ·  Ctrl to lock"
+freeHint.Visible = false
+freeHint.Parent = freeGui
+freeGui.Parent = player:WaitForChild("PlayerGui")
+
 local function updateCursor()
-	-- In first person the mouse is locked; hide its icon unless a screen needs clicking.
-	UserInputService.MouseIconEnabled = thirdPerson == true or player:GetAttribute("UiOpen") == true
+	local freeInFirstPerson = mouseFree and not thirdPerson
+	freeButton.Visible = freeInFirstPerson
+	freeHint.Visible = freeInFirstPerson
+	-- In first person the mouse is locked; hide its icon unless it is freed or a screen needs it.
+	UserInputService.MouseIconEnabled = thirdPerson == true or freeInFirstPerson or player:GetAttribute("UiOpen") == true
 end
+
+UserInputService.InputBegan:Connect(function(input)
+	if UserInputService:GetFocusedTextBox() then
+		return
+	end
+	if input.KeyCode == Enum.KeyCode.LeftControl or input.KeyCode == Enum.KeyCode.RightControl then
+		mouseFree = not mouseFree
+		updateCursor()
+	end
+end)
 
 local function refresh()
 	local camera = Workspace.CurrentCamera
