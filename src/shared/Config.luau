@@ -67,6 +67,44 @@ Config.AvatarNpcs = true
 Config.WalkSpeed = 16
 Config.SprintSpeed = 26
 
+-- Sounds. Most are public sounds from the Roblox Creator Store; swap any id for your own.
+-- The announcement voices are empty until voice recordings are uploaded to Roblox: put each
+-- one's "rbxassetid://..." here and it plays after the chime (the text shows on screen anyway).
+Config.Sounds = {
+	StationAmbience = "rbxassetid://5870205466", -- NYC Subway Station Platform Ambience
+	HorrorAmbience = "rbxassetid://1837172508", -- The Fear Within (APM)
+	TrainArrive = "rbxassetid://9119665017", -- Subway Train 2 (ProSoundEffects)
+	DoorOpen = "rbxassetid://98940676768707", -- Train Door Open Chime
+	DoorClose = "rbxassetid://87008566532209", -- Train Door Close Chime
+	AnnouncementChime = "rbxassetid://7320266725", -- Announcements On
+	Static = "rbxassetid://138347177735590", -- Radio Static Sound
+	PhoneRing = "rbxassetid://9117305259", -- Phone Ring Electronic Consumer Phone 1 (ProSoundEffects)
+	Jumpscare = "rbxassetid://6150329916", -- Jumpscare Scream
+	-- Built into Roblox, no upload needed.
+	Footsteps = "rbxasset://sounds/action_footsteps_plastic.mp3",
+	Announcements = {
+		Calm = { ar = nil :: string?, en = nil :: string? },
+		Horror = { ar = nil :: string?, en = nil :: string? },
+	},
+}
+
+-- Cutscenes made by the animator (see animator/README.md). Leave nil to use the built-in
+-- placeholders: eyes opening at the start, and a shake-and-flash crash at level 6.
+Config.Cutscenes = {
+	-- An R15 animation id: the player waking up in their seat at the start of a game.
+	WakeUpAnimation = nil :: string?,
+	-- A Roblox Video id: the train crash, shown full screen when the dark half begins.
+	CrashVideo = nil :: string?,
+	-- How long the game waits on the crash before the station comes back (seconds).
+	CrashSeconds = 6,
+}
+
+-- Saved progress and the lobby leaderboard (Roblox DataStores). In Studio they need
+-- Game Settings > Security > "Enable Studio Access to API Services"; without it the game
+-- keeps everything in memory for that test.
+Config.DataStoreVersion = "v1"
+Config.LeaderboardSize = 10
+
 -- Station lights for the two halves of the game.
 Config.Moods = {
 	Calm = {

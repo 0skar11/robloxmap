@@ -100,6 +100,44 @@ Config.AvatarNpcs = true
 Config.WalkSpeed = 16
 Config.SprintSpeed = 26
 
+-- Sounds. Most are public sounds from the Roblox Creator Store; swap any id for your own.
+-- The announcement voices are empty until voice recordings are uploaded to Roblox: put each
+-- one's "rbxassetid://..." here and it plays after the chime (the text shows on screen anyway).
+Config.Sounds = {
+	StationAmbience = "rbxassetid://5870205466", -- NYC Subway Station Platform Ambience
+	HorrorAmbience = "rbxassetid://1837172508", -- The Fear Within (APM)
+	TrainArrive = "rbxassetid://9119665017", -- Subway Train 2 (ProSoundEffects)
+	DoorOpen = "rbxassetid://98940676768707", -- Train Door Open Chime
+	DoorClose = "rbxassetid://87008566532209", -- Train Door Close Chime
+	AnnouncementChime = "rbxassetid://7320266725", -- Announcements On
+	Static = "rbxassetid://138347177735590", -- Radio Static Sound
+	PhoneRing = "rbxassetid://9117305259", -- Phone Ring Electronic Consumer Phone 1 (ProSoundEffects)
+	Jumpscare = "rbxassetid://6150329916", -- Jumpscare Scream
+	-- Built into Roblox, no upload needed.
+	Footsteps = "rbxasset://sounds/action_footsteps_plastic.mp3",
+	Announcements = {
+		Calm = { ar = nil :: string?, en = nil :: string? },
+		Horror = { ar = nil :: string?, en = nil :: string? },
+	},
+}
+
+-- Cutscenes made by the animator (see animator/README.md). Leave nil to use the built-in
+-- placeholders: eyes opening at the start, and a shake-and-flash crash at level 6.
+Config.Cutscenes = {
+	-- An R15 animation id: the player waking up in their seat at the start of a game.
+	WakeUpAnimation = nil :: string?,
+	-- A Roblox Video id: the train crash, shown full screen when the dark half begins.
+	CrashVideo = nil :: string?,
+	-- How long the game waits on the crash before the station comes back (seconds).
+	CrashSeconds = 6,
+}
+
+-- Saved progress and the lobby leaderboard (Roblox DataStores). In Studio they need
+-- Game Settings > Security > "Enable Studio Access to API Services"; without it the game
+-- keeps everything in memory for that test.
+Config.DataStoreVersion = "v1"
+Config.LeaderboardSize = 10
+
 -- Station lights for the two halves of the game.
 Config.Moods = {
 	Calm = {
@@ -255,6 +293,11 @@ local TEXT: { [string]: { [string]: any } } = {
 		CheckpointReached = "CHECKPOINT! Mistakes now send you back to Level %d",
 		HorrorBegins = "The lights are going out... something is wrong",
 		Wiped = "Everyone is dead... back to Level 1",
+		AnnounceCalm = "Next station: Al-Nour. Please mind the gap.",
+		AnnounceHorror = "Next station... Al-Nour... there were no survivors.",
+		IncomingCall = "Incoming call\nMom",
+		PrivateWall = "NOT HERE",
+		CrashNews = "BREAKING: Line 14 train crash - no survivors",
 		Spectating = "You died. Watching %s",
 		SpectateHint = "Waiting until the whole group is gone",
 		Ending = "You reached the end... (the final scene is still being built)",
@@ -317,6 +360,11 @@ local TEXT: { [string]: { [string]: any } } = {
 		CheckpointReached = "Checkpoint! لو غلطتوا من هنا هترجعوا لـ Level %d",
 		HorrorBegins = "النور بيطفي… فيه حاجة غلط",
 		Wiped = "كلكم متّوا… رجعتوا لـ Level 1",
+		AnnounceCalm = "المحطة القادمة: محطة النور. من فضلك خلي بالك من الفراغ.",
+		AnnounceHorror = "المحطة القادمة… محطة النور… مفيش ناجين.",
+		IncomingCall = "مكالمة واردة\nماما",
+		PrivateWall = "مش هنا",
+		CrashNews = "عاجل: حادثة قطار الخط 14 - لا ناجين",
 		Spectating = "انت مت. بتتفرج على %s",
 		SpectateHint = "مستني لحد ما المجموعة كلها تموت",
 		Ending = "وصلتوا للنهاية… (المشهد الأخير لسه بيتبني)",
@@ -394,6 +442,27 @@ return {
         </Item>
         <Item class="ModuleScript" referent="10">
           <Properties>
+            <string name="Name">DriverStaring</string>
+            <string name="Source"><![CDATA[-- The driver has turned around in his seat: his head twists all the way back to watch you.
+local Stare = require(script.Parent.Parent.Stare)
+
+return {
+	Name = "DriverStaring",
+	-- Scary: only in the dark half of the game.
+	Horror = true,
+	Apply = function(ctx)
+		-- Much further than a person can turn.
+		Stare.track(ctx, { ctx.Refs.Driver }, math.rad(170))
+	end,
+	Reset = function(ctx)
+		ctx:Restore()
+	end,
+}
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="11">
+          <Properties>
             <string name="Name">ExtraMissedCall</string>
             <string name="Source"><![CDATA[-- The phone on the floor now shows 13 missed calls instead of 12.
 return {
@@ -410,7 +479,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="11">
+        <Item class="ModuleScript" referent="12">
           <Properties>
             <string name="Name">ExtraPassenger</string>
             <string name="Source"><![CDATA[-- Someone new is on the platform: a faceless figure standing with their face to the wall.
@@ -441,7 +510,55 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="12">
+        <Item class="ModuleScript" referent="13">
+          <Properties>
+            <string name="Name">FaceInWindow</string>
+            <string name="Source"><![CDATA[-- In one of the dark windows of a closed car, a pale face is pressed against the glass, with
+-- two hands beside it. The cars are supposed to be empty.
+
+local function piece(ctx, name: string, size: Vector3, cframe: CFrame, color: Color3, neon: boolean?)
+	local part = Instance.new("Part")
+	part.Name = name
+	part.Size = size
+	part.CFrame = cframe
+	part.Color = color
+	part.Material = if neon then Enum.Material.Neon else Enum.Material.SmoothPlastic
+	part.Anchored = true
+	part.CanCollide = false
+	part.CanQuery = false
+	part.CastShadow = false
+	ctx:Add(part)
+	return part
+end
+
+return {
+	Name = "FaceInWindow",
+	-- Scary: only in the dark half of the game.
+	Horror = true,
+	Apply = function(ctx)
+		-- Spots just behind the platform-side windows, looking out at the platform (-Z).
+		local spot: CFrame = ctx:Pick(ctx.Refs.ClosedCarWindows)
+		local pale = Color3.fromRGB(205, 208, 200)
+		local face = piece(ctx, "Face", Vector3.new(1.4, 1.6, 0.9), spot, pale)
+		piece(ctx, "EyeLeft", Vector3.new(0.3, 0.2, 0.05), spot * CFrame.new(-0.3, 0.2, -0.47), Color3.fromRGB(5, 5, 5))
+		piece(ctx, "EyeRight", Vector3.new(0.3, 0.2, 0.05), spot * CFrame.new(0.3, 0.2, -0.47), Color3.fromRGB(5, 5, 5))
+		piece(ctx, "Mouth", Vector3.new(0.35, 0.45, 0.05), spot * CFrame.new(0, -0.4, -0.47), Color3.fromRGB(15, 5, 5))
+		piece(ctx, "HandLeft", Vector3.new(0.6, 0.9, 0.2), spot * CFrame.new(-1.3, 0.1, -0.35) * CFrame.Angles(0, 0, math.rad(15)), pale)
+		piece(ctx, "HandRight", Vector3.new(0.6, 0.9, 0.2), spot * CFrame.new(1.3, -0.1, -0.35) * CFrame.Angles(0, 0, math.rad(-12)), pale)
+		local glow = Instance.new("PointLight")
+		glow.Color = Color3.fromRGB(180, 200, 220)
+		glow.Range = 4
+		glow.Brightness = 0.6
+		glow.Parent = face
+	end,
+	Reset = function(ctx)
+		ctx:Restore()
+	end,
+}
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="14">
           <Properties>
             <string name="Name">FlickeringLight</string>
             <string name="Source"><![CDATA[-- One ceiling light keeps flickering.
@@ -481,7 +598,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="13">
+        <Item class="ModuleScript" referent="15">
           <Properties>
             <string name="Name">MissingDriver</string>
             <string name="Source"><![CDATA[-- The train is standing at the platform, but nobody is in the driver's seat.
@@ -497,7 +614,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="14">
+        <Item class="ModuleScript" referent="16">
           <Properties>
             <string name="Name">MissingPassenger</string>
             <string name="Source"><![CDATA[-- One of the passengers is gone.
@@ -513,7 +630,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="15">
+        <Item class="ModuleScript" referent="17">
           <Properties>
             <string name="Name">MissingPillar</string>
             <string name="Source"><![CDATA[-- One of the pillars is missing. The middle one stays: the flowers lean on it.
@@ -535,7 +652,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="16">
+        <Item class="ModuleScript" referent="18">
           <Properties>
             <string name="Name">NamedPoster</string>
             <string name="Source"><![CDATA[-- An advertisement now carries one of the players' names.
@@ -554,64 +671,67 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="17">
+        <Item class="ModuleScript" referent="19">
           <Properties>
-            <string name="Name">StaringPassengers</string>
-            <string name="Source"><![CDATA[-- Every passenger slowly turns their head to follow the nearest player.
-local RunService = game:GetService("RunService")
+            <string name="Name">OnlyOneSees</string>
+            <string name="Source"><![CDATA[-- "Moment of doubt": something is wrong, but only one player can see it. The others see a normal
+-- station, so that player has to convince them to GO BACK. It shows the moment the screen clears.
+-- The effect itself is drawn on that player's screen only (see the Private client script).
 
-local TURN_SPEED = 3
-local MAX_TURN = math.rad(75)
-
-local function nearestHead(players: { Player }, position: Vector3): Vector3?
-	local best, bestDistance = nil, math.huge
-	for _, player in players do
-		local head = player.Character and player.Character:FindFirstChild("Head")
-		if head and head:IsA("BasePart") then
-			local distance = (head.Position - position).Magnitude
-			if distance < bestDistance then
-				best, bestDistance = head.Position, distance
-			end
-		end
-	end
-	return best
-end
+local EFFECTS = { "Figure", "NameSign", "WallWriting", "ClockMidnight" }
 
 return {
-	Name = "StaringPassengers",
-	-- Scary: only in the dark half of the game.
+	Name = "OnlyOneSees",
+	Apply = function(ctx)
+		if #ctx.Players == 0 then
+			return
+		end
+		-- GameLoop sends this to the chosen player when the screen clears, and ends it after.
+		ctx:Set(ctx.Refs, "Private", { Player = ctx:Pick(ctx.Players), Effect = ctx:Pick(EFFECTS) })
+	end,
+	Reset = function(ctx)
+		ctx:Restore()
+	end,
+}
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="20">
+          <Properties>
+            <string name="Name">PhoneRinging</string>
+            <string name="Source"><![CDATA[-- The phone on the floor is ringing: "Incoming call - Mom", buzzing on the tiles.
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Config = require(ReplicatedStorage.Shared.Config)
+
+return {
+	Name = "PhoneRinging",
+	-- Scary, and the phone only exists in the dark half anyway.
 	Horror = true,
 	Apply = function(ctx)
-		-- Avatars turn their neck joint; block mannequins turn the head part itself.
-		local necks, heads = {}, {}
-		for _, passenger in ctx.Refs.Passengers do
-			local head = passenger:FindFirstChild("Head", true)
-			local neck = head and head:FindFirstChild("Neck")
-			if neck and neck:IsA("Motor6D") and neck.Part0 then
-				ctx:Set(neck, "C0", neck.C0)
-				table.insert(necks, { Joint = neck, Rest = neck.C0, Yaw = 0 })
-			elseif head and head:IsA("BasePart") then
-				ctx:Set(head, "CFrame", head.CFrame)
-				table.insert(heads, head)
-			end
-		end
+		local phone: BasePart = ctx.Refs.Phone
+		ctx:Set(ctx.Refs.PhoneLabel, "Text", ctx:Text("IncomingCall"))
+		ctx:Set(ctx.Refs.PhoneLabel, "BackgroundColor3", Color3.fromRGB(20, 120, 60))
+		ctx:Set(phone, "CFrame", phone.CFrame)
 
-		ctx:Connect(RunService.Heartbeat, function(dt: number)
-			local blend = math.min(1, dt * TURN_SPEED)
-			for _, neck in necks do
-				local target = nearestHead(ctx.Players, neck.Joint.Part1.Position)
-				if target then
-					local relative = neck.Joint.Part0.CFrame:PointToObjectSpace(target)
-					local goal = math.clamp(math.atan2(-relative.X, -relative.Z), -MAX_TURN, MAX_TURN)
-					neck.Yaw += (goal - neck.Yaw) * blend
-					neck.Joint.C0 = neck.Rest * CFrame.Angles(0, neck.Yaw, 0)
+		local ring = Instance.new("Sound")
+		ring.SoundId = Config.Sounds.PhoneRing
+		ring.Looped = true
+		ring.Volume = 0.8
+		ring.RollOffMaxDistance = 70
+		ctx:Add(ring, phone)
+		ring:Play()
+
+		-- Buzz on the floor.
+		local rest = phone.CFrame
+		ctx:Spawn(function()
+			while true do
+				for _ = 1, 12 do
+					phone.CFrame = rest * CFrame.new((math.random() - 0.5) * 0.08, 0, (math.random() - 0.5) * 0.08) * CFrame.Angles(0, math.rad((math.random() - 0.5) * 6), 0)
+					task.wait(0.05)
 				end
-			end
-			for _, head in heads do
-				local target = nearestHead(ctx.Players, head.Position)
-				if target then
-					head.CFrame = head.CFrame:Lerp(CFrame.lookAt(head.Position, target), blend)
-				end
+				phone.CFrame = rest
+				task.wait(0.8)
 			end
 		end)
 	end,
@@ -622,7 +742,27 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="18">
+        <Item class="ModuleScript" referent="21">
+          <Properties>
+            <string name="Name">StaringPassengers</string>
+            <string name="Source"><![CDATA[-- Every passenger slowly turns their head to follow the nearest player.
+local Stare = require(script.Parent.Parent.Stare)
+
+return {
+	Name = "StaringPassengers",
+	-- Scary: only in the dark half of the game.
+	Horror = true,
+	Apply = function(ctx)
+		Stare.track(ctx, ctx.Refs.Passengers, math.rad(75))
+	end,
+	Reset = function(ctx)
+		ctx:Restore()
+	end,
+}
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="22">
           <Properties>
             <string name="Name">StoppedClock</string>
             <string name="Source"><![CDATA[-- The station clock is stuck on the time the train arrives and never ticks.
@@ -639,7 +779,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="19">
+        <Item class="ModuleScript" referent="23">
           <Properties>
             <string name="Name">TheFollower</string>
             <string name="Source"><![CDATA[-- A faceless figure steps out at the far end of the platform and slowly walks toward the nearest
@@ -724,7 +864,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="20">
+        <Item class="ModuleScript" referent="24">
           <Properties>
             <string name="Name">TurnedBench</string>
             <string name="Source"><![CDATA[-- The empty bench has been turned to face the wall.
@@ -747,7 +887,23 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="21">
+        <Item class="ModuleScript" referent="25">
+          <Properties>
+            <string name="Name">UpsideDownSign</string>
+            <string name="Source"><![CDATA[-- The station name on the big sign is upside down.
+return {
+	Name = "UpsideDownSign",
+	Apply = function(ctx)
+		ctx:Set(ctx.Refs.StationName, "Rotation", 180)
+	end,
+	Reset = function(ctx)
+		ctx:Restore()
+	end,
+}
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="26">
           <Properties>
             <string name="Name">WalkerJumpscare</string>
             <string name="Source"><![CDATA[-- The man in the middle looks horrifying, and a moment after the doors open he sprints at the
@@ -770,7 +926,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="22">
+        <Item class="ModuleScript" referent="27">
           <Properties>
             <string name="Name">WrongLineNumber</string>
             <string name="Source"><![CDATA[-- The line badge reads 41 instead of 14.
@@ -787,7 +943,7 @@ return {
           </Properties>
         </Item>
       </Item>
-      <Item class="ModuleScript" referent="23">
+      <Item class="ModuleScript" referent="28">
         <Properties>
           <string name="Name">AnomalyContext</string>
           <string name="Source"><![CDATA[-- Handed to an anomaly's Apply and Reset. Every change made through it is recorded, so
@@ -922,7 +1078,7 @@ return AnomalyContext
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="24">
+      <Item class="ModuleScript" referent="29">
         <Properties>
           <string name="Name">AnomalyRegistry</string>
           <string name="Source"><![CDATA[-- Loads every ModuleScript in the Anomalies folder. To add an anomaly, drop a new module there:
@@ -973,7 +1129,7 @@ return AnomalyRegistry
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="25">
+      <Item class="ModuleScript" referent="30">
         <Properties>
           <string name="Name">Build</string>
           <string name="Source"><![CDATA[-- Small helpers for building maps out of plain anchored parts.
@@ -1061,7 +1217,7 @@ return Build
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="26">
+      <Item class="ModuleScript" referent="31">
         <Properties>
           <string name="Name">GameLoop</string>
           <string name="Source"><![CDATA[-- One group's game: the train stops, the players look around, they vote on a door, the screen goes
@@ -1084,6 +1240,7 @@ local Net = require(ReplicatedStorage.Shared.Net)
 local Strings = require(ReplicatedStorage.Shared.Strings)
 local AnomalyContext = require(script.Parent.AnomalyContext)
 local AnomalyRegistry = require(script.Parent.AnomalyRegistry)
+local Records = require(script.Parent.Records)
 local VoteManager = require(script.Parent.VoteManager)
 local Walker = require(script.Parent.Walker)
 
@@ -1240,6 +1397,16 @@ function GameLoop.run(session)
 		return pool[random:NextInteger(1, #pool)]
 	end
 
+	local function sound(name: string)
+		fire({ Kind = "Sound", Name = name })
+	end
+
+	local function reportLevel()
+		for _, player in members() do
+			Records.reportLevel(player, level)
+		end
+	end
+
 	runClock(refs, function()
 		return stationStartedAt
 	end)
@@ -1250,6 +1417,9 @@ function GameLoop.run(session)
 	fade(true)
 	-- Give random-avatar passengers a moment to load in the dark.
 	task.wait(Config.BlackoutSeconds)
+
+	local runStartedAt = os.clock()
+	local firstStation = true
 
 	while #members() > 0 do
 		-- Set up the next station while the screen is dark.
@@ -1279,10 +1449,24 @@ function GameLoop.run(session)
 		boardTrain()
 		stationStartedAt = os.clock()
 		publishState("Riding")
+		reportLevel()
+		sound("TrainArrive")
+		if firstStation then
+			-- The very first stop: everyone wakes up in their seat.
+			fire({ Kind = "WakeUp" })
+			firstStation = false
+		end
+		-- "Moment of doubt": an anomaly only one player sees, there the moment the screen clears.
+		local private = refs.Private
+		if private and private.Player.Parent then
+			event:FireClient(private.Player, { Kind = "Private", Effect = private.Effect, Map = refs.Map, Language = language })
+		end
 		fade(false)
 
 		-- The train has stopped: doors open and the players decide.
 		setDoors(refs, true)
+		sound("DoorOpen")
+		fire({ Kind = "Announce", Mood = mood, Text = text(if mood == "Horror" then "AnnounceHorror" else "AnnounceCalm") })
 		publishState("Station")
 		local stopWalker = Walker.start(refs, session.GetAlive, function(player)
 			event:FireClient(player, { Kind = "Jumpscare" })
@@ -1290,10 +1474,14 @@ function GameLoop.run(session)
 		local choice, byCoinFlip, outcome = VoteManager.collect(refs.Doors, members, session.GetAlive, publishVote, random)
 
 		publishState("Riding")
+		sound("DoorClose")
 		if byCoinFlip then
 			message(text("CoinFlip", text(if choice == "Continue" then "DoorContinue" else "DoorBack")), 2)
 		end
 		fade(true)
+		if private and private.Player.Parent then
+			event:FireClient(private.Player, { Kind = "PrivateEnd" })
+		end
 		-- Back to his spot before the anomaly is undone, so its changes come off cleanly.
 		stopWalker()
 
@@ -1322,12 +1510,21 @@ function GameLoop.run(session)
 			end
 			level += 1
 			if level > Config.TotalLevels then
+				-- Finished: it counts as a best of "TotalLevels + 1", and the time goes on the board.
+				reportLevel()
+				Records.submitRun(members(), os.clock() - runStartedAt)
+				if session.OnRunFinished then
+					session.OnRunFinished()
+				end
 				message(text("Ending"), 4)
 				task.wait(4)
 				return
 			end
 			if level == Config.HorrorStartsAtLevel then
-				task.delay(2, message, text("HorrorBegins"), 3)
+				-- The crash: the animator's video if there is one, otherwise shake, flash and the news.
+				fire({ Kind = "Crash", News = text("CrashNews") })
+				task.wait(Config.Cutscenes.CrashSeconds)
+				message(text("HorrorBegins"), 3)
 			end
 		else
 			level = checkpoint + 1
@@ -1343,7 +1540,7 @@ return GameLoop
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="27">
+      <Item class="ModuleScript" referent="32">
         <Properties>
           <string name="Name">Gore</string>
           <string name="Source"><![CDATA[-- Turns a person into something horrifying, through an anomaly context so it all comes undone:
@@ -1420,7 +1617,7 @@ return Gore
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="28">
+      <Item class="ModuleScript" referent="33">
         <Properties>
           <string name="Name">Graphics</string>
           <string name="Source"><![CDATA[-- Creates the lighting effects every client uses. Each client then tweens Lighting and these
@@ -1467,7 +1664,7 @@ return Graphics
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="29">
+      <Item class="ModuleScript" referent="34">
         <Properties>
           <string name="Name">LobbyBuilder</string>
           <string name="Source"><![CDATA[-- The lobby: a bright ticket hall with a row of gates. Groups gather on a gate, and when it leaves
@@ -1615,6 +1812,52 @@ local function buildPeople(lobby: Folder)
 	end
 end
 
+-- The fastest-groups board on the east wall. Returns its row labels (filled by Main).
+local function buildLeaderboard(lobby: Folder): { TextLabel }
+	local board = block(lobby, "Leaderboard", Vector3.new(0.4, 15, 22), at(59.75, 9.5, 0), COLORS.Frame)
+	local gui = Instance.new("SurfaceGui")
+	gui.Face = Enum.NormalId.Left
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.PixelsPerStud = 30
+	gui.LightInfluence = 0
+	gui.Parent = board
+
+	local layout = Instance.new("UIListLayout")
+	layout.FillDirection = Enum.FillDirection.Vertical
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Padding = UDim.new(0.01, 0)
+	layout.Parent = gui
+	local padding = Instance.new("UIPadding")
+	padding.PaddingLeft = UDim.new(0.04, 0)
+	padding.PaddingRight = UDim.new(0.04, 0)
+	padding.PaddingTop = UDim.new(0.03, 0)
+	padding.Parent = gui
+
+	local function row(order: number, height: number, color: Color3): TextLabel
+		local label = Instance.new("TextLabel")
+		label.LayoutOrder = order
+		label.Size = UDim2.fromScale(1, height)
+		label.BackgroundTransparency = 1
+		label.Font = Enum.Font.GothamBold
+		label.TextScaled = true
+		label.TextColor3 = color
+		label.TextXAlignment = Enum.TextXAlignment.Left
+		label.Text = ""
+		label.Parent = gui
+		return label
+	end
+
+	local title = row(0, 0.1, COLORS.Yellow)
+	title.Text = "FASTEST GROUPS"
+	title.TextXAlignment = Enum.TextXAlignment.Center
+	local rows = {}
+	for i = 1, Config.LeaderboardSize do
+		table.insert(rows, row(i, 0.075, Color3.fromRGB(225, 225, 225)))
+	end
+	rows[1].Text = "No one has made it out yet..."
+	return rows
+end
+
 -- Builds the lobby into Workspace.Lobby. Returns the gates and the spawn point.
 function LobbyBuilder.build()
 	LobbyBuilder.clearDefaultPlace()
@@ -1629,6 +1872,7 @@ function LobbyBuilder.build()
 
 	local spawn = buildHall(lobby)
 	buildPeople(lobby)
+	local leaderboardRows = buildLeaderboard(lobby)
 	local gates = {}
 	local first = -(Config.LobbyPads - 1) * GATE_SPACING / 2
 	for i = 1, Config.LobbyPads do
@@ -1641,6 +1885,7 @@ function LobbyBuilder.build()
 		Spawn = spawn,
 		SpawnCFrame = spawn.CFrame * CFrame.new(0, 3.5, 0),
 		Gates = gates,
+		LeaderboardRows = leaderboardRows,
 	}
 end
 
@@ -1648,7 +1893,7 @@ return LobbyBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="30">
+      <Item class="ModuleScript" referent="35">
         <Properties>
           <string name="Name">LobbyManager</string>
           <string name="Source"><![CDATA[-- Lobby gates. Standing on a gate joins its group; stepping off leaves it. The first player on a
@@ -1839,7 +2084,7 @@ return LobbyManager
 ]]></string>
         </Properties>
       </Item>
-      <Item class="Script" referent="31">
+      <Item class="Script" referent="36">
         <Properties>
           <string name="Name">Main</string>
           <token name="RunContext">0</token>
@@ -1855,12 +2100,27 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local Graphics = require(script.Parent.Graphics)
 local LobbyBuilder = require(script.Parent.LobbyBuilder)
 local LobbyManager = require(script.Parent.LobbyManager)
+local Records = require(script.Parent.Records)
 local SessionManager = require(script.Parent.SessionManager)
 
 local live = Config.UseSeparateServers and not RunService:IsStudio()
 local isGameServer = live and game.PrivateServerId ~= "" and game.PrivateServerOwnerId == 0
 
+-- The fastest-groups board: "1. 4:12  -  OSKAR, Ali (2)".
+local function showLeaderboard(rows: { TextLabel })
+	local runs = Records.refreshTop()
+	for i, label in rows do
+		local run = runs[i]
+		if run then
+			label.Text = string.format("%d.  %d:%02d   %s (%d)", i, run.Seconds // 60, run.Seconds % 60, run.Names, run.Size)
+		else
+			label.Text = if i == 1 then "No one has made it out yet..." else ""
+		end
+	end
+end
+
 Graphics.apply()
+Records.init()
 if isGameServer then
 	LobbyBuilder.clearDefaultPlace()
 	SessionManager.initGameServer()
@@ -1868,11 +2128,20 @@ else
 	local lobby = LobbyBuilder.build()
 	SessionManager.init(lobby, live)
 	LobbyManager.start(lobby)
+	task.spawn(function()
+		while true do
+			showLeaderboard(lobby.LeaderboardRows)
+			task.wait(60)
+		end
+	end)
+	SessionManager.onRunFinished = function()
+		task.defer(showLeaderboard, lobby.LeaderboardRows)
+	end
 end
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="32">
+      <Item class="ModuleScript" referent="37">
         <Properties>
           <string name="Name">Mannequin</string>
           <string name="Source"><![CDATA[-- Faceless block passengers built from anchored parts, so the map needs no uploaded assets.
@@ -1958,7 +2227,7 @@ return Mannequin
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="33">
+      <Item class="ModuleScript" referent="38">
         <Properties>
           <string name="Name">MapBuilder</string>
           <string name="Source"><![CDATA[-- Builds one station in code, styled after real metro stations: a tiled platform with a tactile
@@ -2311,6 +2580,11 @@ local function buildClosedCar(map: Folder, refs, x0: number, x1: number)
 	end
 	carBenches(car, x0, x1, doorXs)
 
+	-- Spots behind its platform-side windows (for the FaceInWindow anomaly), clear of doors and posts.
+	for _, dx in { -16.5, -3.2, 3.2, 16.5 } do
+		table.insert(refs.ClosedCarWindows, at(mid + dx, 7, CAR.OuterNear + CAR.Wall + 0.6))
+	end
+
 	-- Its lights are station lights: on in the bright levels, dead in the dark ones.
 	local light = Build.ceilingLight(car, "Light", Vector3.new(x1 - x0 - 4, 0.2, 0.8), at(mid, CAR.RoofBottom - 0.15, 17.75), COLORS.Light, 1, 12)
 	light:SetAttribute("DiesInHorror", true)
@@ -2616,6 +2890,7 @@ local function buildStation(map: Folder, refs, language: string)
 	flowers.Parent = station
 
 	local phone = block(station, "Phone", Vector3.new(0.7, 0.06, 1.2), at(34, 1.03, 4) * CFrame.Angles(0, math.rad(25), 0), COLORS.Dark)
+	refs.Phone = phone
 	refs.PhoneLabel = surfaceText(phone, Enum.NormalId.Top, Strings.get(language, "MissedCalls", 12), {
 		Background = Color3.fromRGB(10, 10, 14),
 		TextColor = Color3.fromRGB(230, 230, 235),
@@ -2652,6 +2927,7 @@ function MapBuilder.build(stationOrigin: CFrame, name: string, language: string,
 		Language = language,
 		Lights = {},
 		Gloomy = {},
+		ClosedCarWindows = {},
 		At = function(x: number, y: number, z: number): CFrame
 			return stationOrigin * CFrame.new(x, y, z)
 		end,
@@ -2690,7 +2966,7 @@ return MapBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="34">
+      <Item class="ModuleScript" referent="39">
         <Properties>
           <string name="Name">Npc</string>
           <string name="Source"><![CDATA[-- NPCs. Each one appears straight away as a block mannequin, then (if Config.AvatarNpcs is on)
@@ -2840,7 +3116,7 @@ return Npc
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="35">
+      <Item class="ModuleScript" referent="40">
         <Properties>
           <string name="Name">NpcOutfits</string>
           <string name="Source"><![CDATA[-- Fixed looks for the NPCs: the same people in every game and in the lobby.
@@ -3036,7 +3312,213 @@ return NpcOutfits
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="36">
+      <Item class="ModuleScript" referent="41">
+        <Properties>
+          <string name="Name">Records</string>
+          <string name="Source"><![CDATA[-- Saved progress and the fastest-groups leaderboard.
+--
+--   Best level  each player's highest level reached (TotalLevels + 1 means they finished). Shown
+--               above their head in the lobby only, and published as the "BestLevel" attribute.
+--   Fastest     the quickest groups to finish the game, shown on the board in the lobby.
+--
+-- Uses DataStores. If they are not available (Studio without API access, or an outage) the same
+-- data lives in memory for that server, so nothing breaks.
+
+local DataStoreService = game:GetService("DataStoreService")
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Config = require(ReplicatedStorage.Shared.Config)
+
+local VERSION = Config.DataStoreVersion
+
+local Records = {}
+
+local progressStore, fastestStore, runStore = nil, nil, nil
+local storesOk = pcall(function()
+	progressStore = DataStoreService:GetDataStore("EndlessSubway_Progress_" .. VERSION)
+	fastestStore = DataStoreService:GetOrderedDataStore("EndlessSubway_Fastest_" .. VERSION)
+	runStore = DataStoreService:GetDataStore("EndlessSubway_Runs_" .. VERSION)
+end)
+
+local bestCache: { [number]: number } = {}
+local memoryRuns: { { Seconds: number, Names: string, Size: number } } = {}
+local topCache: { { Seconds: number, Names: string, Size: number } } = {}
+
+local function warnOnce(err)
+	if storesOk then
+		warn("[EndlessSubway] DataStore unavailable, keeping records in memory:", err)
+		storesOk = false
+	end
+end
+
+-- ===== Best level =====
+
+local function updateTag(player: Player)
+	local character = player.Character
+	local head = character and character:FindFirstChild("Head")
+	if not head then
+		return
+	end
+	local tag = head:FindFirstChild("BestTag")
+	if not tag then
+		tag = Instance.new("BillboardGui")
+		tag.Name = "BestTag"
+		tag.Size = UDim2.fromOffset(200, 26)
+		tag.StudsOffset = Vector3.new(0, 2.6, 0)
+		tag.AlwaysOnTop = false
+		tag.MaxDistance = 60
+		local label = Instance.new("TextLabel")
+		label.Name = "Text"
+		label.Size = UDim2.fromScale(1, 1)
+		label.BackgroundTransparency = 1
+		label.Font = Enum.Font.GothamBold
+		label.TextScaled = true
+		label.TextColor3 = Color3.fromRGB(245, 200, 40)
+		label.TextStrokeTransparency = 0.4
+		label.Parent = tag
+		tag.Parent = head
+	end
+	local best = bestCache[player.UserId] or 0
+	local label = tag:FindFirstChild("Text") :: TextLabel
+	if best > Config.TotalLevels then
+		label.Text = "Best: FINISHED"
+	elseif best > 0 then
+		label.Text = string.format("Best: Level %d", best)
+	else
+		label.Text = "Best: -"
+	end
+	-- Only in the lobby.
+	tag.Enabled = player:GetAttribute("Phase") == "Lobby"
+end
+
+local function loadBest(player: Player)
+	local best = 0
+	if storesOk then
+		local ok, value = pcall(function()
+			return progressStore:GetAsync("u_" .. player.UserId)
+		end)
+		if ok then
+			best = tonumber(value) or 0
+		else
+			warnOnce(value)
+		end
+	end
+	bestCache[player.UserId] = math.max(bestCache[player.UserId] or 0, best)
+	player:SetAttribute("BestLevel", bestCache[player.UserId])
+	updateTag(player)
+end
+
+-- Called whenever a player reaches a level (TotalLevels + 1 when they finish).
+function Records.reportLevel(player: Player, level: number)
+	local previous = bestCache[player.UserId] or 0
+	if level <= previous then
+		return
+	end
+	bestCache[player.UserId] = level
+	player:SetAttribute("BestLevel", level)
+	if storesOk then
+		task.spawn(function()
+			local ok, err = pcall(function()
+				progressStore:UpdateAsync("u_" .. player.UserId, function(old)
+					return math.max(tonumber(old) or 0, level)
+				end)
+			end)
+			if not ok then
+				warnOnce(err)
+			end
+		end)
+	end
+end
+
+-- ===== Fastest groups =====
+
+-- Called when a group finishes the game.
+function Records.submitRun(players: { Player }, seconds: number)
+	local names = {}
+	for _, player in players do
+		table.insert(names, player.DisplayName)
+	end
+	local run = { Seconds = math.floor(seconds + 0.5), Names = table.concat(names, ", "), Size = #players }
+	table.insert(memoryRuns, run)
+	if not storesOk then
+		return
+	end
+	task.spawn(function()
+		local id = HttpService:GenerateGUID(false)
+		local ok, err = pcall(function()
+			runStore:SetAsync(id, run)
+			fastestStore:SetAsync(id, run.Seconds)
+		end)
+		if not ok then
+			warnOnce(err)
+		end
+	end)
+end
+
+-- The fastest runs, quickest first (cached; refreshed by refreshTop).
+function Records.top(): { { Seconds: number, Names: string, Size: number } }
+	return topCache
+end
+
+function Records.refreshTop()
+	local runs = {}
+	if storesOk then
+		local ok, err = pcall(function()
+			local page = fastestStore:GetSortedAsync(true, Config.LeaderboardSize):GetCurrentPage()
+			for _, entry in page do
+				local run = runStore:GetAsync(entry.key)
+				if type(run) == "table" then
+					table.insert(runs, { Seconds = entry.value, Names = tostring(run.Names), Size = tonumber(run.Size) or 0 })
+				end
+			end
+		end)
+		if not ok then
+			warnOnce(err)
+		end
+	end
+	if not storesOk then
+		runs = table.clone(memoryRuns)
+		table.sort(runs, function(a, b)
+			return a.Seconds < b.Seconds
+		end)
+	end
+	while #runs > Config.LeaderboardSize do
+		table.remove(runs)
+	end
+	topCache = runs
+	return runs
+end
+
+function Records.init()
+	local function onPlayer(player: Player)
+		player.CharacterAdded:Connect(function(character)
+			character:WaitForChild("Head", 10)
+			updateTag(player)
+		end)
+		player:GetAttributeChangedSignal("Phase"):Connect(function()
+			updateTag(player)
+		end)
+		player:GetAttributeChangedSignal("BestLevel"):Connect(function()
+			updateTag(player)
+		end)
+		task.spawn(loadBest, player)
+	end
+	Players.PlayerAdded:Connect(onPlayer)
+	for _, player in Players:GetPlayers() do
+		onPlayer(player)
+	end
+	Players.PlayerRemoving:Connect(function(player)
+		bestCache[player.UserId] = nil
+	end)
+end
+
+return Records
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="42">
         <Properties>
           <string name="Name">SessionManager</string>
           <string name="Source"><![CDATA[-- Runs one game per group, and owns spawning and death.
@@ -3077,6 +3559,9 @@ local GAME_ATTRIBUTES = {
 }
 
 local SessionManager = {}
+
+-- Optional hook (set by Main on lobby servers): called when a group finishes the game.
+SessionManager.onRunFinished = nil :: (() -> ())?
 
 local lobby = nil -- lobby refs; nil on a game server
 local live = false -- true when groups are teleported to their own servers
@@ -3178,6 +3663,13 @@ local function newSession(slot: number, language: string, withSpawn: boolean)
 		Members = {} :: { Player },
 		Refs = nil :: any,
 	}
+	-- Main sets this so a finished run refreshes the lobby leaderboard right away.
+	function session.OnRunFinished()
+		if SessionManager.onRunFinished then
+			SessionManager.onRunFinished()
+		end
+	end
+
 	local stationOrigin = CFrame.new(slot * Config.StationSpacing, 50, 0)
 	session.Refs = MapBuilder.build(stationOrigin, "Station" .. slot, session.Language, withSpawn)
 
@@ -3402,7 +3894,72 @@ return SessionManager
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="37">
+      <Item class="ModuleScript" referent="43">
+        <Properties>
+          <string name="Name">Stare</string>
+          <string name="Source"><![CDATA[-- Makes people turn their heads to follow the nearest player, through an anomaly context so it
+-- all comes undone. Avatars turn their neck joint; block mannequins turn the head part itself.
+
+local RunService = game:GetService("RunService")
+
+local TURN_SPEED = 3
+
+local Stare = {}
+
+local function nearestHead(players: { Player }, position: Vector3): Vector3?
+	local best, bestDistance = nil, math.huge
+	for _, player in players do
+		local head = player.Character and player.Character:FindFirstChild("Head")
+		if head and head:IsA("BasePart") then
+			local distance = (head.Position - position).Magnitude
+			if distance < bestDistance then
+				best, bestDistance = head.Position, distance
+			end
+		end
+	end
+	return best
+end
+
+-- maxTurn: how far (radians) a neck may twist from straight ahead.
+function Stare.track(ctx, models: { Model }, maxTurn: number)
+	local necks, heads = {}, {}
+	for _, model in models do
+		local head = model:FindFirstChild("Head", true)
+		local neck = head and head:FindFirstChild("Neck")
+		if neck and neck:IsA("Motor6D") and neck.Part0 then
+			ctx:Set(neck, "C0", neck.C0)
+			table.insert(necks, { Joint = neck, Rest = neck.C0, Yaw = 0 })
+		elseif head and head:IsA("BasePart") then
+			ctx:Set(head, "CFrame", head.CFrame)
+			table.insert(heads, head)
+		end
+	end
+
+	ctx:Connect(RunService.Heartbeat, function(dt: number)
+		local blend = math.min(1, dt * TURN_SPEED)
+		for _, neck in necks do
+			local target = nearestHead(ctx.Players, neck.Joint.Part1.Position)
+			if target then
+				local relative = neck.Joint.Part0.CFrame:PointToObjectSpace(target)
+				local goal = math.clamp(math.atan2(-relative.X, -relative.Z), -maxTurn, maxTurn)
+				neck.Yaw += (goal - neck.Yaw) * blend
+				neck.Joint.C0 = neck.Rest * CFrame.Angles(0, neck.Yaw, 0)
+			end
+		end
+		for _, head in heads do
+			local target = nearestHead(ctx.Players, head.Position)
+			if target then
+				head.CFrame = head.CFrame:Lerp(CFrame.lookAt(head.Position, target), blend)
+			end
+		end
+	end)
+end
+
+return Stare
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="44">
         <Properties>
           <string name="Name">VoteManager</string>
           <string name="Source"><![CDATA[-- Majority vote by standing in front of a door. Each player votes with their body: whoever is
@@ -3520,7 +4077,7 @@ return VoteManager
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="38">
+      <Item class="ModuleScript" referent="45">
         <Properties>
           <string name="Name">Walker</string>
           <string name="Source"><![CDATA[-- The passenger standing in the middle of the platform. Every station, a moment after the doors
@@ -3533,7 +4090,10 @@ return VoteManager
 --
 -- Walker.start() runs one station's behavior and returns a stop function that puts him back.
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+
+local Config = require(ReplicatedStorage.Shared.Config)
 
 local WALK_ANIMATION = "rbxassetid://507777826"
 local RUN_ANIMATION = "rbxassetid://507767714"
@@ -3634,6 +4194,15 @@ function Walker.start(refs, getAlive: () -> { Player }, onScare: (Player) -> ())
 		table.clear(tracks)
 	end
 
+	-- Footsteps from where he is, while he walks or runs.
+	local steps = Instance.new("Sound")
+	steps.Name = "WalkerFootsteps"
+	steps.SoundId = Config.Sounds.Footsteps
+	steps.Looped = true
+	steps.Volume = 0.45
+	steps.RollOffMaxDistance = 60
+	steps.Parent = root or model.PrimaryPart or model
+
 	-- Loaded up front so it is ready the moment he sits, and above every other pose.
 	local sitTrack = load(SIT_ANIMATION, Enum.AnimationPriority.Action)
 
@@ -3668,6 +4237,7 @@ function Walker.start(refs, getAlive: () -> { Player }, onScare: (Player) -> ())
 		end
 		-- Stop walking at once (a fading walk would keep the legs moving), line him up right above
 		-- the seat facing the same way, and only then let the seat take him.
+		steps:Stop()
 		stopTracks(0)
 		root.CFrame = seat.CFrame * CFrame.new(0, humanoid.HipHeight + root.Size.Y / 2 + 0.2, 0)
 		root.AssemblyLinearVelocity = Vector3.zero
@@ -3684,6 +4254,8 @@ function Walker.start(refs, getAlive: () -> { Player }, onScare: (Player) -> ())
 		if mode == "Chase" then
 			task.wait(math.random() * 2)
 			play(RUN_ANIMATION, 1.2)
+			steps.PlaybackSpeed = 1.6
+			steps:Play()
 			local deadline = os.clock() + CHASE_SECONDS
 			while running and os.clock() < deadline do
 				local dt = RunService.Heartbeat:Wait()
@@ -3697,12 +4269,15 @@ function Walker.start(refs, getAlive: () -> { Player }, onScare: (Player) -> ())
 				end
 			end
 			-- He is gone after the scare; he'll be back in his spot next station.
+			steps:Stop()
 			stopTracks()
 			setCFrame(home)
 			return
 		end
 
 		play(WALK_ANIMATION, 0.55)
+		steps.PlaybackSpeed = 0.9
+		steps:Play()
 		for _, point in refs.WalkerPath do
 			if not walkTo(point) then
 				return
@@ -3717,6 +4292,7 @@ function Walker.start(refs, getAlive: () -> { Player }, onScare: (Player) -> ())
 			task.cancel(thread)
 		end
 		stopTracks(0)
+		steps:Destroy()
 		-- Get up from the seat and go back to his spot.
 		local weld = refs.WalkerSeat and refs.WalkerSeat:FindFirstChild("SeatWeld")
 		if weld then
@@ -3738,22 +4314,153 @@ return Walker
       </Item>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="39">
+  <Item class="StarterPlayer" referent="46">
     <Properties>
       <string name="Name">StarterPlayer</string>
       <token name="CameraMode">0</token>
       <float name="CharacterWalkSpeed">16</float>
       <bool name="EnableMouseLockOption">false</bool>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="40">
+    <Item class="StarterPlayerScripts" referent="47">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="Folder" referent="41">
+      <Item class="Folder" referent="48">
         <Properties>
           <string name="Name">Client</string>
         </Properties>
-        <Item class="LocalScript" referent="42">
+        <Item class="LocalScript" referent="49">
+          <Properties>
+            <string name="Name">Audio</string>
+            <string name="Source"><![CDATA[-- Everything the player hears that is not tied to a spot in the world:
+--   ambience      a station hum in the bright levels, a horror bed in the dark ones, nothing in
+--                 the lobby (crossfaded when the mood changes)
+--   one-shots     the train arriving, the doors, the scream of a jumpscare
+--   announcement  a chime, then the recorded voice in the group's language if one is set in
+--                 Config.Sounds.Announcements (with radio static in the dark half)
+-- Sounds that belong to a place (the ringing phone, footsteps) are made by the server there.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local SoundService = game:GetService("SoundService")
+local TweenService = game:GetService("TweenService")
+
+local Config = require(ReplicatedStorage.Shared.Config)
+local Net = require(ReplicatedStorage.Shared.Net)
+
+local player = Players.LocalPlayer
+local sounds = Config.Sounds
+
+local FADE = TweenInfo.new(2.5, Enum.EasingStyle.Sine)
+
+local function makeSound(id: string?, volume: number, looped: boolean): Sound?
+	if not id then
+		return nil
+	end
+	local sound = Instance.new("Sound")
+	sound.SoundId = id
+	sound.Volume = volume
+	sound.Looped = looped
+	sound.Parent = SoundService
+	return sound
+end
+
+-- ===== Ambience =====
+
+local ambience = {
+	Calm = { Sound = makeSound(sounds.StationAmbience, 0, true), Volume = 0.35 },
+	Horror = { Sound = makeSound(sounds.HorrorAmbience, 0, true), Volume = 0.3 },
+}
+
+local function updateAmbience()
+	local inGame = player:GetAttribute("Phase") ~= nil and player:GetAttribute("Phase") ~= "Lobby"
+	local mood = player:GetAttribute("Mood")
+	for name, track in ambience do
+		local sound = track.Sound
+		if sound then
+			local wanted = if inGame and mood == name then track.Volume else 0
+			if wanted > 0 and not sound.IsPlaying then
+				sound:Play()
+			end
+			TweenService:Create(sound, FADE, { Volume = wanted }):Play()
+		end
+	end
+end
+
+player:GetAttributeChangedSignal("Mood"):Connect(updateAmbience)
+player:GetAttributeChangedSignal("Phase"):Connect(updateAmbience)
+updateAmbience()
+
+-- ===== One-shots =====
+
+local function playOnce(id: string?, volume: number): Sound?
+	local sound = makeSound(id, volume, false)
+	if not sound then
+		return nil
+	end
+	sound.Ended:Once(function()
+		sound:Destroy()
+	end)
+	sound:Play()
+	return sound
+end
+
+local ONE_SHOTS = {
+	TrainArrive = { Id = sounds.TrainArrive, Volume = 0.6, Seconds = 5 },
+	DoorOpen = { Id = sounds.DoorOpen, Volume = 0.5 },
+	DoorClose = { Id = sounds.DoorClose, Volume = 0.5 },
+}
+
+local function announce(mood: string)
+	local chime = playOnce(sounds.AnnouncementChime, 0.5)
+	if chime then
+		task.wait(1.5)
+	end
+	local language = player:GetAttribute("Language") or "en"
+	local voices = sounds.Announcements[mood] or sounds.Announcements.Calm
+	local voice = voices[language]
+	if mood == "Horror" then
+		local static = playOnce(sounds.Static, 0.25)
+		if static then
+			task.delay(7, function()
+				if static.Parent then
+					static:Destroy()
+				end
+			end)
+		end
+	end
+	playOnce(voice, 0.9)
+end
+
+Net.event().OnClientEvent:Connect(function(payload)
+	if payload.Kind == "Sound" then
+		local shot = ONE_SHOTS[payload.Name]
+		if shot then
+			local sound = playOnce(shot.Id, shot.Volume)
+			-- Long recordings (the train) only play their first few seconds, then fade.
+			if sound and shot.Seconds then
+				task.delay(shot.Seconds, function()
+					if sound.Parent then
+						TweenService:Create(sound, TweenInfo.new(1.5), { Volume = 0 }):Play()
+						task.delay(1.6, function()
+							if sound.Parent then
+								sound:Destroy()
+							end
+						end)
+					end
+				end)
+			end
+		end
+	elseif payload.Kind == "Announce" then
+		task.spawn(announce, payload.Mood)
+	elseif payload.Kind == "Jumpscare" then
+		playOnce(sounds.Jumpscare, 1)
+	end
+end)
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="LocalScript" referent="50">
           <Properties>
             <string name="Name">Camera</string>
             <string name="Source"><![CDATA[-- Camera for every situation:
@@ -3983,7 +4690,182 @@ end
 ]]></string>
           </Properties>
         </Item>
-        <Item class="LocalScript" referent="43">
+        <Item class="LocalScript" referent="51">
+          <Properties>
+            <string name="Name">Cutscene</string>
+            <string name="Source"><![CDATA[-- The two story moments.
+--   WakeUp  at the first stop of a game: you wake up in the train. Eyelids open (blinking once)
+--           out of a blur, and the animator's wake-up animation plays on your character if
+--           Config.Cutscenes.WakeUpAnimation is set.
+--   Crash   when the dark half begins: the animator's video if Config.Cutscenes.CrashVideo is
+--           set, otherwise a stand-in of flashes, shaking, screeching and the breaking news.
+
+local Lighting = game:GetService("Lighting")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local SoundService = game:GetService("SoundService")
+local TweenService = game:GetService("TweenService")
+
+local Config = require(ReplicatedStorage.Shared.Config)
+local Net = require(ReplicatedStorage.Shared.Net)
+
+local player = Players.LocalPlayer
+local cutscenes = Config.Cutscenes
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "Cutscene"
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+-- Above the HUD and its black screen.
+gui.DisplayOrder = 20
+gui.Parent = player:WaitForChild("PlayerGui")
+
+local function frame(props: { [string]: any }): Frame
+	local f = Instance.new("Frame")
+	f.BorderSizePixel = 0
+	f.BackgroundColor3 = Color3.new(0, 0, 0)
+	for key, value in props do
+		(f :: any)[key] = value
+	end
+	f.Parent = gui
+	return f
+end
+
+local function playAnimation(id: string)
+	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+	local animator = humanoid and humanoid:FindFirstChildOfClass("Animator")
+	if not animator then
+		return
+	end
+	local animation = Instance.new("Animation")
+	animation.AnimationId = id
+	local ok, track = pcall(function()
+		return animator:LoadAnimation(animation)
+	end)
+	if ok and track then
+		track.Priority = Enum.AnimationPriority.Action4
+		track:Play()
+	end
+end
+
+local function wakeUp()
+	if cutscenes.WakeUpAnimation then
+		playAnimation(cutscenes.WakeUpAnimation)
+	end
+
+	-- Two eyelids closing the screen from the top and bottom.
+	local top = frame({ Size = UDim2.fromScale(1, 0.5), Position = UDim2.fromScale(0, 0) })
+	local bottom = frame({ Size = UDim2.fromScale(1, 0.5), Position = UDim2.fromScale(0, 0.5) })
+	local blur = Instance.new("BlurEffect")
+	blur.Size = 24
+	blur.Parent = Lighting
+
+	local function lids(open: number, seconds: number)
+		local info = TweenInfo.new(seconds, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+		TweenService:Create(top, info, { Position = UDim2.fromScale(0, -0.5 * open) }):Play()
+		TweenService:Create(bottom, info, { Position = UDim2.fromScale(0, 0.5 + 0.5 * open) }):Play()
+		task.wait(seconds)
+	end
+
+	task.wait(1) -- the HUD's black screen is fading out underneath
+	lids(0.35, 0.9) -- eyes half open
+	lids(0.05, 0.25) -- blink
+	lids(1, 1.2) -- awake
+	TweenService:Create(blur, TweenInfo.new(1.5), { Size = 0 }):Play()
+	task.wait(1.6)
+	top:Destroy()
+	bottom:Destroy()
+	blur:Destroy()
+end
+
+local function sound(id: string?, volume: number)
+	if not id then
+		return
+	end
+	local s = Instance.new("Sound")
+	s.SoundId = id
+	s.Volume = volume
+	s.Parent = SoundService
+	s.Ended:Once(function()
+		s:Destroy()
+	end)
+	s:Play()
+	task.delay(cutscenes.CrashSeconds + 1, function()
+		if s.Parent then
+			s:Destroy()
+		end
+	end)
+end
+
+local function crash(news: string)
+	local seconds = cutscenes.CrashSeconds
+
+	if cutscenes.CrashVideo then
+		local video = Instance.new("VideoFrame")
+		video.Size = UDim2.fromScale(1, 1)
+		video.BackgroundColor3 = Color3.new(0, 0, 0)
+		video.Video = cutscenes.CrashVideo
+		video.Parent = gui
+		video:Play()
+		local deadline = os.clock() + seconds
+		while video.IsPlaying and os.clock() < deadline do
+			task.wait(0.1)
+		end
+		video:Destroy()
+		return
+	end
+
+	-- Stand-in until the animator's video exists.
+	local flash = frame({ Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 1 })
+	local ticker = Instance.new("TextLabel")
+	ticker.AnchorPoint = Vector2.new(0.5, 1)
+	ticker.Position = UDim2.new(0.5, 0, 1, -60)
+	ticker.Size = UDim2.new(0.9, 0, 0, 44)
+	ticker.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
+	ticker.BorderSizePixel = 0
+	ticker.Font = Enum.Font.GothamBlack
+	ticker.TextScaled = true
+	ticker.TextColor3 = Color3.new(1, 1, 1)
+	ticker.Text = news
+	ticker.Visible = false
+	ticker.ZIndex = 2
+	ticker.Parent = gui
+
+	sound(Config.Sounds.TrainArrive, 1)
+	sound(Config.Sounds.Static, 0.5)
+	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+	local started = os.clock()
+	while os.clock() - started < seconds * 0.55 do
+		local t = (os.clock() - started) / (seconds * 0.55)
+		flash.BackgroundColor3 = if math.random() < 0.5 then Color3.new(1, 1, 1) else Color3.fromRGB(160, 0, 0)
+		flash.BackgroundTransparency = if math.random() < 0.35 then 0 else 0.6 + 0.4 * t
+		if humanoid then
+			humanoid.CameraOffset = Vector3.new(math.random(-10, 10), math.random(-10, 10), 0) / 25 * (1 - t)
+		end
+		task.wait(0.04)
+	end
+	if humanoid then
+		humanoid.CameraOffset = Vector3.zero
+	end
+	flash.BackgroundColor3 = Color3.new(0, 0, 0)
+	flash.BackgroundTransparency = 0
+	ticker.Visible = true
+	task.wait(seconds * 0.45)
+	flash:Destroy()
+	ticker:Destroy()
+end
+
+Net.event().OnClientEvent:Connect(function(payload)
+	if payload.Kind == "WakeUp" then
+		task.spawn(wakeUp)
+	elseif payload.Kind == "Crash" then
+		task.spawn(crash, payload.News or "")
+	end
+end)
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="LocalScript" referent="52">
           <Properties>
             <string name="Name">HUD</string>
             <string name="Source"><![CDATA[-- Player HUD.
@@ -4166,6 +5048,18 @@ local messageLabel = text(gui, "Message", {
 	Size = UDim2.fromScale(0.7, 0.08),
 	TextTransparency = 1,
 	TextStrokeTransparency = 1,
+	ZIndex = 3,
+})
+
+-- The station announcement, shown like a PA subtitle while it plays.
+local subtitle = text(gui, "Announcement", {
+	AnchorPoint = Vector2.new(0.5, 1),
+	Position = UDim2.new(0.5, 0, 1, -110),
+	Size = UDim2.new(0.6, 0, 0, 30),
+	BackgroundColor3 = Color3.fromRGB(10, 10, 14),
+	BackgroundTransparency = 0.35,
+	TextColor3 = Color3.fromRGB(245, 200, 40),
+	Visible = false,
 	ZIndex = 3,
 })
 
@@ -4458,6 +5352,15 @@ event.OnClientEvent:Connect(function(payload)
 		showMessage(payload.Text, payload.Duration or 3)
 	elseif payload.Kind == "Jumpscare" then
 		task.spawn(jumpscare)
+	elseif payload.Kind == "Announce" then
+		subtitle.Text = payload.Text or ""
+		subtitle.Visible = true
+		local shown = subtitle.Text
+		task.delay(7, function()
+			if subtitle.Text == shown then
+				subtitle.Visible = false
+			end
+		end)
 	end
 end)
 
@@ -4478,7 +5381,7 @@ end)
 ]]></string>
           </Properties>
         </Item>
-        <Item class="LocalScript" referent="44">
+        <Item class="LocalScript" referent="53">
           <Properties>
             <string name="Name">Mood</string>
             <string name="Source"><![CDATA[-- Local look of the world, from the player's "Mood" attribute:
@@ -4568,7 +5471,157 @@ apply()
 ]]></string>
           </Properties>
         </Item>
-        <Item class="LocalScript" referent="45">
+        <Item class="LocalScript" referent="54">
+          <Properties>
+            <string name="Name">Private</string>
+            <string name="Source"><![CDATA[-- "Moment of doubt": the server picks one player and tells only them that something is wrong.
+-- Everything here is made on this player's screen alone, so their friends see a normal station
+-- and have to be convinced to GO BACK. It is in place before the screen clears.
+--   Figure         a tall black figure with red eyes stands right outside the car doors
+--   NameSign       the station sign shows this player's name
+--   WallWriting    red writing on the back wall
+--   ClockMidnight  the clock is stuck flashing 00:00:00
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+
+local Net = require(ReplicatedStorage.Shared.Net)
+local Strings = require(ReplicatedStorage.Shared.Strings)
+
+local player = Players.LocalPlayer
+
+local cleanups: { () -> () } = {}
+
+local function clear()
+	for i = #cleanups, 1, -1 do
+		pcall(cleanups[i])
+	end
+	table.clear(cleanups)
+end
+
+local function localPart(name: string, size: Vector3, cframe: CFrame, color: Color3, neon: boolean?): Part
+	local part = Instance.new("Part")
+	part.Name = name
+	part.Size = size
+	part.CFrame = cframe
+	part.Color = color
+	part.Material = if neon then Enum.Material.Neon else Enum.Material.SmoothPlastic
+	part.Anchored = true
+	part.CanCollide = false
+	part.CanQuery = false
+	part.CastShadow = false
+	part.Parent = Workspace
+	table.insert(cleanups, function()
+		part:Destroy()
+	end)
+	return part
+end
+
+-- The station's layout origin, from its platform (built at origin * (0, -1.5, 0)).
+local function originOf(map: Instance): CFrame?
+	local platform = map:FindFirstChild("Platform", true)
+	if platform and platform:IsA("BasePart") then
+		return platform.CFrame * CFrame.new(0, 1.5, 0)
+	end
+	return nil
+end
+
+local function labelOf(map: Instance, partName: string): TextLabel?
+	local part = map:FindFirstChild(partName, true)
+	local label = part and part:FindFirstChild("Text", true)
+	return if label and label:IsA("TextLabel") then label else nil
+end
+
+local EFFECTS = {}
+
+function EFFECTS.Figure(map: Instance)
+	local origin = originOf(map)
+	if not origin then
+		return
+	end
+	-- Just outside the left car door, facing the car.
+	local base = origin * CFrame.new(-10, 1, 7) * CFrame.Angles(0, math.pi, 0)
+	local black = Color3.fromRGB(5, 5, 6)
+	localPart("Body", Vector3.new(1.6, 6, 0.9), base * CFrame.new(0, 3, 0), black)
+	local head = localPart("Head", Vector3.new(1.1, 1.3, 1), base * CFrame.new(0, 6.7, 0), black)
+	for _, x in { -0.25, 0.25 } do
+		localPart("Eye", Vector3.new(0.16, 0.1, 0.05), head.CFrame * CFrame.new(x, 0.1, -0.53), Color3.fromRGB(255, 20, 20), true)
+	end
+	for _, x in { -1.05, 1.05 } do
+		localPart("Arm", Vector3.new(0.4, 4.6, 0.4), base * CFrame.new(x, 3.6, 0), black)
+	end
+end
+
+function EFFECTS.NameSign(map: Instance)
+	local label = labelOf(map, "StationSign")
+	if not label then
+		return
+	end
+	local original = label.Text
+	label.Text = player.DisplayName
+	table.insert(cleanups, function()
+		label.Text = original
+	end)
+end
+
+function EFFECTS.WallWriting(map: Instance, language: string)
+	local origin = originOf(map)
+	if not origin then
+		return
+	end
+	local board = localPart("Writing", Vector3.new(14, 5, 0.05), origin * CFrame.new(-26, 7.5, -9.93), Color3.new(0, 0, 0))
+	board.Transparency = 1
+	local gui = Instance.new("SurfaceGui")
+	gui.Face = Enum.NormalId.Back
+	gui.LightInfluence = 0.3
+	gui.Parent = board
+	local text = Instance.new("TextLabel")
+	text.Size = UDim2.fromScale(1, 1)
+	text.BackgroundTransparency = 1
+	text.Font = Enum.Font.Creepster
+	text.TextScaled = true
+	text.TextColor3 = Color3.fromRGB(150, 5, 8)
+	text.Text = Strings.get(language, "PrivateWall")
+	text.Parent = gui
+end
+
+function EFFECTS.ClockMidnight(map: Instance)
+	local label = labelOf(map, "Clock")
+	if not label then
+		return
+	end
+	-- The server keeps writing the time; win every frame until it ends.
+	local connection = RunService.RenderStepped:Connect(function()
+		label.Text = if os.clock() % 1 < 0.5 then "00:00:00" else ""
+	end)
+	table.insert(cleanups, function()
+		connection:Disconnect()
+	end)
+end
+
+Net.event().OnClientEvent:Connect(function(payload)
+	if payload.Kind == "Private" then
+		clear()
+		local effect = EFFECTS[payload.Effect]
+		if effect and payload.Map then
+			effect(payload.Map, payload.Language or "en")
+		end
+	elseif payload.Kind == "PrivateEnd" then
+		clear()
+	end
+end)
+
+player:GetAttributeChangedSignal("Phase"):Connect(function()
+	if player:GetAttribute("Phase") == "Lobby" then
+		clear()
+	end
+end)
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="LocalScript" referent="55">
           <Properties>
             <string name="Name">Sprint</string>
             <string name="Source"><![CDATA[-- Sprinting. PC: hold Shift. Mobile: a button on screen toggles between sprint and walk.
