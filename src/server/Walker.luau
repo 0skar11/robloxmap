@@ -74,9 +74,9 @@ function Walker.start(refs, getAlive: () -> { Player }, onScare: (Player) -> ())
 	local running = true
 	local tracks: { AnimationTrack } = {}
 
-	local function play(id: string, speed: number)
+	local function load(id: string, priority: Enum.AnimationPriority): AnimationTrack?
 		if not humanoid then
-			return
+			return nil
 		end
 		local animator = humanoid:FindFirstChildOfClass("Animator") or Instance.new("Animator")
 		animator.Parent = humanoid
@@ -85,20 +85,32 @@ function Walker.start(refs, getAlive: () -> { Player }, onScare: (Player) -> ())
 		local ok, track = pcall(function()
 			return animator:LoadAnimation(animation)
 		end)
-		if ok and track then
-			track.Looped = true
+		if not ok or not track then
+			return nil
+		end
+		track.Looped = true
+		track.Priority = priority
+		return track
+	end
+
+	local function play(id: string, speed: number)
+		local track = load(id, Enum.AnimationPriority.Movement)
+		if track then
 			track:Play(0.2)
 			track:AdjustSpeed(speed)
 			table.insert(tracks, track)
 		end
 	end
 
-	local function stopTracks()
+	local function stopTracks(fade: number?)
 		for _, track in tracks do
-			track:Stop(0.2)
+			track:Stop(fade or 0.2)
 		end
 		table.clear(tracks)
 	end
+
+	-- Loaded up front so it is ready the moment he sits, and above every other pose.
+	local sitTrack = load(SIT_ANIMATION, Enum.AnimationPriority.Action)
 
 	-- One frame's step toward a point on the floor. Returns the distance left.
 	local function stepToward(target: Vector3, speed: number, dt: number): number
@@ -126,10 +138,19 @@ function Walker.start(refs, getAlive: () -> { Player }, onScare: (Player) -> ())
 
 	local function sit()
 		local seat = refs.WalkerSeat
-		if root and humanoid and seat then
-			root.Anchored = false
-			seat:Sit(humanoid)
-			play(SIT_ANIMATION, 1)
+		if not (root and humanoid and seat) then
+			return
+		end
+		-- Stop walking at once (a fading walk would keep the legs moving), line him up right above
+		-- the seat facing the same way, and only then let the seat take him.
+		stopTracks(0)
+		root.CFrame = seat.CFrame * CFrame.new(0, humanoid.HipHeight + root.Size.Y / 2 + 0.2, 0)
+		root.AssemblyLinearVelocity = Vector3.zero
+		root.Anchored = false
+		seat:Sit(humanoid)
+		if sitTrack then
+			sitTrack:Play(0)
+			table.insert(tracks, sitTrack)
 		end
 	end
 
@@ -162,7 +183,6 @@ function Walker.start(refs, getAlive: () -> { Player }, onScare: (Player) -> ())
 				return
 			end
 		end
-		stopTracks()
 		sit()
 	end)
 
@@ -171,7 +191,7 @@ function Walker.start(refs, getAlive: () -> { Player }, onScare: (Player) -> ())
 		if coroutine.status(thread) ~= "dead" then
 			task.cancel(thread)
 		end
-		stopTracks()
+		stopTracks(0)
 		-- Get up from the seat and go back to his spot.
 		local weld = refs.WalkerSeat and refs.WalkerSeat:FindFirstChild("SeatWeld")
 		if weld then

@@ -122,6 +122,8 @@ local function loadAvatar(container: Model, pose: "Stand" | "Sit", pivot: CFrame
 	local played = pcall(function()
 		local track = animator:LoadAnimation(animation)
 		track.Looped = true
+		-- Above every other pose, so nothing makes a seated passenger look like they are standing.
+		track.Priority = Enum.AnimationPriority.Action
 		track:Play(0)
 	end)
 	if not played then

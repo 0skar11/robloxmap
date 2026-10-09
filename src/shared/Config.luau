@@ -38,6 +38,10 @@ Config.BlackoutSeconds = 2
 -- Prints the active anomaly to the server output. Handy while testing, spoils the game otherwise.
 Config.Debug = false
 
+-- Testing: the level a new game starts at. Set it to 6 to jump straight into the dark half
+-- (checkpoints before it count as reached). Keep it at 1 for the real game.
+Config.StartLevel = 1
+
 -- Lobby: groups of 1 to 10 players gather on a gate, then go play together.
 Config.MinPartySize = 1
 Config.MaxPartySize = 10
