@@ -18,6 +18,7 @@ local Workspace = game:GetService("Workspace")
 local Strings = require(ReplicatedStorage.Shared.Strings)
 local Build = require(script.Parent.Build)
 local Npc = require(script.Parent.Npc)
+local NpcOutfits = require(script.Parent.NpcOutfits)
 
 local block = Build.block
 local surfaceText = Build.surfaceText
@@ -458,7 +459,7 @@ local function buildCab(map: Folder, refs)
 	Build.ceilingLight(cab, "CabLight", Vector3.new(4, 0.15, 2), at(x1 - 8, CAR.RoofBottom - 0.2, midZ), Color3.fromRGB(235, 240, 255), 0.9, 12)
 
 	-- The driver faces the way the train goes (+X).
-	refs.Driver = Npc.create("Driver", "Sit", at(x1 - 6, 3, midZ) * CFrame.Angles(0, -math.pi / 2, 0), Color3.fromRGB(25, 45, 85))
+	refs.Driver = Npc.create("Driver", "Sit", at(x1 - 6, 3, midZ) * CFrame.Angles(0, -math.pi / 2, 0), Color3.fromRGB(25, 45, 85), NpcOutfits.Driver)
 	refs.Driver.Parent = cab
 	refs.Cab = cab
 end
@@ -584,14 +585,16 @@ local function buildStation(map: Folder, refs, language: string)
 	end
 
 	-- Passengers. The game never says who they are.
+	-- Always the same six people, each in the same spot.
 	local flip = CFrame.Angles(0, math.pi, 0)
+	local outfits = NpcOutfits.Passengers
 	refs.Passengers = {
-		Npc.create("Passenger", "Sit", at(-30, 3, -8.1) * flip, Color3.fromRGB(40, 55, 90)),
-		Npc.create("Passenger", "Sit", at(30, 3, -8.1) * flip, Color3.fromRGB(110, 75, 50)),
-		Npc.create("Passenger", "Sit", at(-70, 3, -8.1) * flip, Color3.fromRGB(60, 60, 60)),
-		Npc.create("Passenger", "Stand", at(-5, 3, -3) * flip, Color3.fromRGB(95, 95, 100)),
-		Npc.create("Passenger", "Stand", at(62, 3, 6) * flip, Color3.fromRGB(70, 40, 60)),
-		Npc.create("Passenger", "Sit", at(-2, 2.9, 22.4), Color3.fromRGB(120, 40, 45)),
+		Npc.create("Passenger", "Sit", at(-30, 3, -8.1) * flip, Color3.fromRGB(40, 55, 90), outfits[1]),
+		Npc.create("Passenger", "Sit", at(30, 3, -8.1) * flip, Color3.fromRGB(110, 75, 50), outfits[2]),
+		Npc.create("Passenger", "Sit", at(-70, 3, -8.1) * flip, Color3.fromRGB(60, 60, 60), outfits[3]),
+		Npc.create("Passenger", "Stand", at(-5, 3, -3) * flip, Color3.fromRGB(95, 95, 100), outfits[4]),
+		Npc.create("Passenger", "Stand", at(62, 3, 6) * flip, Color3.fromRGB(70, 40, 60), outfits[5]),
+		Npc.create("Passenger", "Sit", at(-2, 2.9, 22.4), Color3.fromRGB(120, 40, 45), outfits[6]),
 	}
 	for _, passenger in refs.Passengers do
 		passenger.Parent = station

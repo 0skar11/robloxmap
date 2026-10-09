@@ -8,6 +8,8 @@ local Workspace = game:GetService("Workspace")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Build = require(script.Parent.Build)
+local Npc = require(script.Parent.Npc)
+local NpcOutfits = require(script.Parent.NpcOutfits)
 
 local block = Build.block
 
@@ -107,6 +109,40 @@ local function buildGate(lobby: Folder, index: number, x: number)
 	return { Index = index, Zone = zone, Label = label, Glow = glow }
 end
 
+-- The same people as on the train, waiting in the hall: four on seats along the back wall, two
+-- near the gates, and the driver by gate 1.
+local function buildPeople(lobby: Folder)
+	local seatColor = Color3.fromRGB(150, 95, 45)
+	local metal = Color3.fromRGB(165, 168, 172)
+	for _, x in { -45, -28, 28, 45 } do
+		for i = -1, 1 do
+			block(lobby, "Seat", Vector3.new(1.8, 0.4, 1.7), at(x + i * 2, 1.8, 37.2), seatColor)
+			block(lobby, "SeatBack", Vector3.new(1.8, 1.8, 0.3), at(x + i * 2, 2.95, 38.05), seatColor)
+		end
+		block(lobby, "SeatFrame", Vector3.new(6.4, 0.3, 0.6), at(x, 1.45, 37.5), metal, Enum.Material.Metal)
+		for _, dx in { -3, 3 } do
+			block(lobby, "SeatLeg", Vector3.new(0.3, 1.3, 1.2), at(x + dx, 0.65, 37.4), metal, Enum.Material.Metal)
+		end
+	end
+
+	local outfits = NpcOutfits.Passengers
+	local people = {
+		-- Seated, facing the gates (-Z).
+		Npc.create("Passenger", "Sit", at(-45, 2, 37.1), Color3.fromRGB(40, 55, 90), outfits[1]),
+		Npc.create("Passenger", "Sit", at(-28, 2, 37.1), Color3.fromRGB(110, 75, 50), outfits[2]),
+		Npc.create("Passenger", "Sit", at(28, 2, 37.1), Color3.fromRGB(60, 60, 60), outfits[3]),
+		Npc.create("Passenger", "Sit", at(45, 2, 37.1), Color3.fromRGB(95, 95, 100), outfits[4]),
+		-- Standing, looking at the gates.
+		Npc.create("Passenger", "Stand", at(-12, 2, -12), Color3.fromRGB(70, 40, 60), outfits[5]),
+		Npc.create("Passenger", "Stand", at(16, 2, -14), Color3.fromRGB(120, 40, 45), outfits[6]),
+		-- The driver waits by gate 1, facing the hall (+X).
+		Npc.create("Driver", "Stand", at(-57, 2, -24) * CFrame.Angles(0, -math.pi / 2, 0), Color3.fromRGB(25, 45, 85), NpcOutfits.Driver),
+	}
+	for _, person in people do
+		person.Parent = lobby
+	end
+end
+
 -- Builds the lobby into Workspace.Lobby. Returns the gates and the spawn point.
 function LobbyBuilder.build()
 	LobbyBuilder.clearDefaultPlace()
@@ -120,6 +156,7 @@ function LobbyBuilder.build()
 	lobby.Name = "Lobby"
 
 	local spawn = buildHall(lobby)
+	buildPeople(lobby)
 	local gates = {}
 	local first = -(Config.LobbyPads - 1) * GATE_SPACING / 2
 	for i = 1, Config.LobbyPads do

@@ -55,8 +55,8 @@ Config.GroupArrivalTimeout = 20
 -- Each local group's station is built this far from the previous one along X.
 Config.StationSpacing = 1000
 
--- Passengers wear random real Roblox avatars. Set false to use the plain block mannequins.
-Config.RandomAvatarNpcs = true
+-- NPCs wear their fixed avatars (see Server/NpcOutfits). Set false to use plain block mannequins.
+Config.AvatarNpcs = true
 
 -- Movement. PC: hold Shift to sprint. Mobile: a button on screen toggles sprint.
 Config.WalkSpeed = 16

@@ -88,8 +88,8 @@ Config.GroupArrivalTimeout = 20
 -- Each local group's station is built this far from the previous one along X.
 Config.StationSpacing = 1000
 
--- Passengers wear random real Roblox avatars. Set false to use the plain block mannequins.
-Config.RandomAvatarNpcs = true
+-- NPCs wear their fixed avatars (see Server/NpcOutfits). Set false to use plain block mannequins.
+Config.AvatarNpcs = true
 
 -- Movement. PC: hold Shift to sprint. Mobile: a button on screen toggles sprint.
 Config.WalkSpeed = 16
@@ -1336,6 +1336,8 @@ local Workspace = game:GetService("Workspace")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Build = require(script.Parent.Build)
+local Npc = require(script.Parent.Npc)
+local NpcOutfits = require(script.Parent.NpcOutfits)
 
 local block = Build.block
 
@@ -1435,6 +1437,40 @@ local function buildGate(lobby: Folder, index: number, x: number)
 	return { Index = index, Zone = zone, Label = label, Glow = glow }
 end
 
+-- The same people as on the train, waiting in the hall: four on seats along the back wall, two
+-- near the gates, and the driver by gate 1.
+local function buildPeople(lobby: Folder)
+	local seatColor = Color3.fromRGB(150, 95, 45)
+	local metal = Color3.fromRGB(165, 168, 172)
+	for _, x in { -45, -28, 28, 45 } do
+		for i = -1, 1 do
+			block(lobby, "Seat", Vector3.new(1.8, 0.4, 1.7), at(x + i * 2, 1.8, 37.2), seatColor)
+			block(lobby, "SeatBack", Vector3.new(1.8, 1.8, 0.3), at(x + i * 2, 2.95, 38.05), seatColor)
+		end
+		block(lobby, "SeatFrame", Vector3.new(6.4, 0.3, 0.6), at(x, 1.45, 37.5), metal, Enum.Material.Metal)
+		for _, dx in { -3, 3 } do
+			block(lobby, "SeatLeg", Vector3.new(0.3, 1.3, 1.2), at(x + dx, 0.65, 37.4), metal, Enum.Material.Metal)
+		end
+	end
+
+	local outfits = NpcOutfits.Passengers
+	local people = {
+		-- Seated, facing the gates (-Z).
+		Npc.create("Passenger", "Sit", at(-45, 2, 37.1), Color3.fromRGB(40, 55, 90), outfits[1]),
+		Npc.create("Passenger", "Sit", at(-28, 2, 37.1), Color3.fromRGB(110, 75, 50), outfits[2]),
+		Npc.create("Passenger", "Sit", at(28, 2, 37.1), Color3.fromRGB(60, 60, 60), outfits[3]),
+		Npc.create("Passenger", "Sit", at(45, 2, 37.1), Color3.fromRGB(95, 95, 100), outfits[4]),
+		-- Standing, looking at the gates.
+		Npc.create("Passenger", "Stand", at(-12, 2, -12), Color3.fromRGB(70, 40, 60), outfits[5]),
+		Npc.create("Passenger", "Stand", at(16, 2, -14), Color3.fromRGB(120, 40, 45), outfits[6]),
+		-- The driver waits by gate 1, facing the hall (+X).
+		Npc.create("Driver", "Stand", at(-57, 2, -24) * CFrame.Angles(0, -math.pi / 2, 0), Color3.fromRGB(25, 45, 85), NpcOutfits.Driver),
+	}
+	for _, person in people do
+		person.Parent = lobby
+	end
+end
+
 -- Builds the lobby into Workspace.Lobby. Returns the gates and the spawn point.
 function LobbyBuilder.build()
 	LobbyBuilder.clearDefaultPlace()
@@ -1448,6 +1484,7 @@ function LobbyBuilder.build()
 	lobby.Name = "Lobby"
 
 	local spawn = buildHall(lobby)
+	buildPeople(lobby)
 	local gates = {}
 	local first = -(Config.LobbyPads - 1) * GATE_SPACING / 2
 	for i = 1, Config.LobbyPads do
@@ -1800,6 +1837,7 @@ local Workspace = game:GetService("Workspace")
 local Strings = require(ReplicatedStorage.Shared.Strings)
 local Build = require(script.Parent.Build)
 local Npc = require(script.Parent.Npc)
+local NpcOutfits = require(script.Parent.NpcOutfits)
 
 local block = Build.block
 local surfaceText = Build.surfaceText
@@ -2240,7 +2278,7 @@ local function buildCab(map: Folder, refs)
 	Build.ceilingLight(cab, "CabLight", Vector3.new(4, 0.15, 2), at(x1 - 8, CAR.RoofBottom - 0.2, midZ), Color3.fromRGB(235, 240, 255), 0.9, 12)
 
 	-- The driver faces the way the train goes (+X).
-	refs.Driver = Npc.create("Driver", "Sit", at(x1 - 6, 3, midZ) * CFrame.Angles(0, -math.pi / 2, 0), Color3.fromRGB(25, 45, 85))
+	refs.Driver = Npc.create("Driver", "Sit", at(x1 - 6, 3, midZ) * CFrame.Angles(0, -math.pi / 2, 0), Color3.fromRGB(25, 45, 85), NpcOutfits.Driver)
 	refs.Driver.Parent = cab
 	refs.Cab = cab
 end
@@ -2366,14 +2404,16 @@ local function buildStation(map: Folder, refs, language: string)
 	end
 
 	-- Passengers. The game never says who they are.
+	-- Always the same six people, each in the same spot.
 	local flip = CFrame.Angles(0, math.pi, 0)
+	local outfits = NpcOutfits.Passengers
 	refs.Passengers = {
-		Npc.create("Passenger", "Sit", at(-30, 3, -8.1) * flip, Color3.fromRGB(40, 55, 90)),
-		Npc.create("Passenger", "Sit", at(30, 3, -8.1) * flip, Color3.fromRGB(110, 75, 50)),
-		Npc.create("Passenger", "Sit", at(-70, 3, -8.1) * flip, Color3.fromRGB(60, 60, 60)),
-		Npc.create("Passenger", "Stand", at(-5, 3, -3) * flip, Color3.fromRGB(95, 95, 100)),
-		Npc.create("Passenger", "Stand", at(62, 3, 6) * flip, Color3.fromRGB(70, 40, 60)),
-		Npc.create("Passenger", "Sit", at(-2, 2.9, 22.4), Color3.fromRGB(120, 40, 45)),
+		Npc.create("Passenger", "Sit", at(-30, 3, -8.1) * flip, Color3.fromRGB(40, 55, 90), outfits[1]),
+		Npc.create("Passenger", "Sit", at(30, 3, -8.1) * flip, Color3.fromRGB(110, 75, 50), outfits[2]),
+		Npc.create("Passenger", "Sit", at(-70, 3, -8.1) * flip, Color3.fromRGB(60, 60, 60), outfits[3]),
+		Npc.create("Passenger", "Stand", at(-5, 3, -3) * flip, Color3.fromRGB(95, 95, 100), outfits[4]),
+		Npc.create("Passenger", "Stand", at(62, 3, 6) * flip, Color3.fromRGB(70, 40, 60), outfits[5]),
+		Npc.create("Passenger", "Sit", at(-2, 2.9, 22.4), Color3.fromRGB(120, 40, 45), outfits[6]),
 	}
 	for _, passenger in refs.Passengers do
 		passenger.Parent = station
@@ -2476,9 +2516,9 @@ return MapBuilder
       <Item class="ModuleScript" referent="31">
         <Properties>
           <string name="Name">Npc</string>
-          <string name="Source"><![CDATA[-- Passengers. Each one appears straight away as a block mannequin, then (if
--- Config.RandomAvatarNpcs is on) swaps to the avatar of a random real Roblox user once it loads.
--- If no avatar loads, the mannequin stays.
+          <string name="Source"><![CDATA[-- NPCs. Each one appears straight away as a block mannequin, then (if Config.AvatarNpcs is on)
+-- swaps to its fixed outfit from NpcOutfits once the avatar loads, so the same people show up in
+-- every game and in the lobby. If the avatar does not load, the mannequin stays.
 --
 -- The returned Model is the passenger for good: anomalies can hide it or look inside it for
 -- "Head", whichever body it ends up with.
@@ -2492,23 +2532,37 @@ local Mannequin = require(script.Parent.Mannequin)
 
 -- Roblox's default R15 sit animation.
 local SIT_ANIMATION = "rbxassetid://2506281703"
-local MAX_USER_ID = 3_000_000_000
-local ATTEMPTS = 8
 
-local random = Random.new()
+local COLOR_FIELDS = { "HeadColor", "TorsoColor", "LeftArmColor", "RightArmColor", "LeftLegColor", "RightLegColor" }
 
 local Npc = {}
 
-local function randomDescription(): HumanoidDescription?
-	for _ = 1, ATTEMPTS do
-		local ok, description = pcall(function()
-			return Players:GetHumanoidDescriptionFromUserId(random:NextInteger(1, MAX_USER_ID))
+-- A HumanoidDescription for an outfit from NpcOutfits. An outfit with LiveUserId wears that
+-- account's current avatar, and falls back to the saved fields if it cannot be loaded.
+local function describe(outfit): HumanoidDescription?
+	if outfit.LiveUserId then
+		local ok, live = pcall(function()
+			return Players:GetHumanoidDescriptionFromUserId(outfit.LiveUserId)
 		end)
-		if ok and description then
-			return description
+		if ok and live then
+			return live
 		end
 	end
-	return nil
+
+	-- Each field on its own, so one missing item does not cost the whole outfit.
+	local description = Instance.new("HumanoidDescription")
+	for key, value in outfit do
+		if key == "LiveUserId" then
+			continue
+		end
+		local ok, err = pcall(function()
+			(description :: any)[key] = if table.find(COLOR_FIELDS, key) then Color3.fromHex(value) else value
+		end)
+		if not ok then
+			warn("[EndlessSubway] outfit field", key, "failed:", err)
+		end
+	end
+	return description
 end
 
 local function waitUntilInWorld(model: Model): boolean
@@ -2522,8 +2576,8 @@ local function waitUntilInWorld(model: Model): boolean
 	return true
 end
 
-local function loadAvatar(container: Model, pose: "Stand" | "Sit", pivot: CFrame)
-	local description = randomDescription()
+local function loadAvatar(container: Model, pose: "Stand" | "Sit", pivot: CFrame, outfit)
+	local description = describe(outfit)
 	if not description then
 		return
 	end
@@ -2592,11 +2646,11 @@ local function loadAvatar(container: Model, pose: "Stand" | "Sit", pivot: CFrame
 end
 
 -- pose: "Stand" (pivot 2 studs above the floor) or "Sit" (pivot on the seat surface),
--- facing the pivot's LookVector.
-function Npc.create(name: string, pose: "Stand" | "Sit", pivot: CFrame, clothes: Color3): Model
+-- facing the pivot's LookVector. outfit: an entry of NpcOutfits (nil keeps the mannequin).
+function Npc.create(name: string, pose: "Stand" | "Sit", pivot: CFrame, clothes: Color3, outfit: any?): Model
 	local container = Mannequin.create(name, pose, pivot, clothes)
-	if Config.RandomAvatarNpcs then
-		task.spawn(loadAvatar, container, pose, pivot)
+	if Config.AvatarNpcs and outfit then
+		task.spawn(loadAvatar, container, pose, pivot, outfit)
 	end
 	return container
 end
@@ -2606,6 +2660,202 @@ return Npc
         </Properties>
       </Item>
       <Item class="ModuleScript" referent="32">
+        <Properties>
+          <string name="Name">NpcOutfits</string>
+          <string name="Source"><![CDATA[-- Fixed looks for the NPCs: the same people in every game and in the lobby.
+--
+-- The six passengers are outfits of random real Roblox players, picked once and saved here
+-- (clothes, body parts, accessories, body colors and scales), so they never change even if those
+-- players change their avatars. Source accounts are noted for reference only.
+--
+-- The driver wears the live avatar of DRG1YOUSSIF (the game's creator), loaded from the account;
+-- the saved copy below is only used if that load fails.
+--
+-- Fields are HumanoidDescription properties; colors are hex strings.
+
+local NpcOutfits = {}
+
+NpcOutfits.Passengers = {
+	-- 1: from user 3566410439
+	{
+		Shirt = 4047884939,
+		Pants = 382537569,
+		Head = 10638267973,
+		Torso = 4637151279,
+		LeftArm = 4637119437,
+		RightArm = 4637120775,
+		LeftLeg = 4637120072,
+		RightLeg = 4637122096,
+		HatAccessory = "1772336109",
+		HeightScale = 1.0,
+		WidthScale = 1.0,
+		HeadScale = 1.0,
+		DepthScale = 1.0,
+		ProportionScale = 0.0,
+		BodyTypeScale = 0.0,
+		HeadColor = "E5E4DF",
+		TorsoColor = "4B974B",
+		LeftArmColor = "E5E4DF",
+		RightArmColor = "E5E4DF",
+		LeftLegColor = "6E99CA",
+		RightLegColor = "6E99CA",
+	},
+	-- 2: from user 2519739340
+	{
+		Shirt = 144076358,
+		Pants = 144076760,
+		Head = 10638267973,
+		Torso = 86500008,
+		LeftArm = 86500054,
+		RightArm = 86500036,
+		LeftLeg = 86500064,
+		RightLeg = 86500078,
+		HairAccessory = "63690008",
+		HeightScale = 1.0,
+		WidthScale = 1.0,
+		HeadScale = 1.0,
+		DepthScale = 1.0,
+		ProportionScale = 0.0,
+		BodyTypeScale = 0.0,
+		HeadColor = "F2F3F3",
+		TorsoColor = "635F62",
+		LeftArmColor = "F2F3F3",
+		RightArmColor = "F2F3F3",
+		LeftLegColor = "6E99CA",
+		RightLegColor = "6E99CA",
+	},
+	-- 3: from user 164709671
+	{
+		Shirt = 144076436,
+		Pants = 144076512,
+		Head = 10638267973,
+		Torso = 86499666,
+		LeftArm = 86499716,
+		RightArm = 86499698,
+		LeftLeg = 86499753,
+		RightLeg = 86499793,
+		HairAccessory = "376526888,376527350",
+		FaceAccessory = "376527500",
+		HeightScale = 1.0,
+		WidthScale = 1.0,
+		HeadScale = 1.0,
+		DepthScale = 1.0,
+		ProportionScale = 0.0,
+		BodyTypeScale = 0.0,
+		HeadColor = "A3A2A5",
+		TorsoColor = "4B974B",
+		LeftArmColor = "A3A2A5",
+		RightArmColor = "A3A2A5",
+		LeftLegColor = "6E99CA",
+		RightLegColor = "6E99CA",
+	},
+	-- 4: from user 3248231076
+	{
+		Shirt = 382538295,
+		Pants = 144076760,
+		Head = 10638267973,
+		Torso = 86500008,
+		LeftArm = 86500054,
+		RightArm = 86500036,
+		LeftLeg = 86500064,
+		RightLeg = 86500078,
+		HairAccessory = "63690008",
+		HeightScale = 1.0,
+		WidthScale = 1.0,
+		HeadScale = 1.0,
+		DepthScale = 1.0,
+		ProportionScale = 0.0,
+		BodyTypeScale = 0.0,
+		HeadColor = "A3A2A5",
+		TorsoColor = "4B974B",
+		LeftArmColor = "A3A2A5",
+		RightArmColor = "A3A2A5",
+		LeftLegColor = "6E99CA",
+		RightLegColor = "6E99CA",
+	},
+	-- 5: from user 106805689
+	{
+		Shirt = 144076436,
+		Pants = 144076512,
+		Head = 10638267973,
+		Torso = 86499666,
+		LeftArm = 86499716,
+		RightArm = 86499698,
+		LeftLeg = 86499753,
+		RightLeg = 86499793,
+		HairAccessory = "62724852",
+		HeightScale = 1.0,
+		WidthScale = 1.0,
+		HeadScale = 1.0,
+		DepthScale = 1.0,
+		ProportionScale = 0.0,
+		BodyTypeScale = 0.0,
+		HeadColor = "A3A2A5",
+		TorsoColor = "4B974B",
+		LeftArmColor = "A3A2A5",
+		RightArmColor = "A3A2A5",
+		LeftLegColor = "6E99CA",
+		RightLegColor = "6E99CA",
+	},
+	-- 6: from user 1272400347
+	{
+		Shirt = 398634295,
+		Pants = 398634487,
+		Head = 13253943097,
+		Torso = 86499666,
+		LeftArm = 86499716,
+		RightArm = 86499698,
+		LeftLeg = 86499753,
+		RightLeg = 86499793,
+		HairAccessory = "376527350",
+		HeightScale = 1.0,
+		WidthScale = 1.0,
+		HeadScale = 1.0,
+		DepthScale = 1.0,
+		ProportionScale = 0.0,
+		BodyTypeScale = 0.0,
+		HeadColor = "EAB892",
+		TorsoColor = "EAB892",
+		LeftArmColor = "EAB892",
+		RightArmColor = "EAB892",
+		LeftLegColor = "EAB892",
+		RightLegColor = "EAB892",
+	},
+}
+
+NpcOutfits.Driver = {
+	-- DRG1YOUSSIF
+	LiveUserId = 1884464453,
+	Shirt = 14091454088,
+	Pants = 74827642361405,
+	Torso = 86500008,
+	LeftArm = 86500054,
+	RightArm = 86500036,
+	LeftLeg = 86500064,
+	RightLeg = 86500078,
+	HatAccessory = "15037859126",
+	HairAccessory = "114784116282087",
+	FaceAccessory = "13317703219",
+	ShoulderAccessory = "120575639902300",
+	HeightScale = 0.94,
+	WidthScale = 1.0,
+	HeadScale = 0.95,
+	DepthScale = 1.0,
+	ProportionScale = 0.5,
+	BodyTypeScale = 0.0,
+	HeadColor = "EFCEB1",
+	TorsoColor = "EFCEB1",
+	LeftArmColor = "EFCEB1",
+	RightArmColor = "EFCEB1",
+	LeftLegColor = "EFCEB1",
+	RightLegColor = "EFCEB1",
+}
+
+return NpcOutfits
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="33">
         <Properties>
           <string name="Name">SessionManager</string>
           <string name="Source"><![CDATA[-- Runs one game per group, and owns spawning and death.
@@ -2971,7 +3221,7 @@ return SessionManager
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="33">
+      <Item class="ModuleScript" referent="34">
         <Properties>
           <string name="Name">VoteManager</string>
           <string name="Source"><![CDATA[-- Majority vote by standing in front of a door. Each player votes with their body: whoever is
@@ -3089,22 +3339,22 @@ return VoteManager
       </Item>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="34">
+  <Item class="StarterPlayer" referent="35">
     <Properties>
       <string name="Name">StarterPlayer</string>
       <token name="CameraMode">0</token>
       <float name="CharacterWalkSpeed">16</float>
       <bool name="EnableMouseLockOption">false</bool>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="35">
+    <Item class="StarterPlayerScripts" referent="36">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="Folder" referent="36">
+      <Item class="Folder" referent="37">
         <Properties>
           <string name="Name">Client</string>
         </Properties>
-        <Item class="LocalScript" referent="37">
+        <Item class="LocalScript" referent="38">
           <Properties>
             <string name="Name">Camera</string>
             <string name="Source"><![CDATA[-- Camera for every situation:
@@ -3334,7 +3584,7 @@ end
 ]]></string>
           </Properties>
         </Item>
-        <Item class="LocalScript" referent="38">
+        <Item class="LocalScript" referent="39">
           <Properties>
             <string name="Name">HUD</string>
             <string name="Source"><![CDATA[-- Player HUD.
@@ -3745,7 +3995,7 @@ end)
 ]]></string>
           </Properties>
         </Item>
-        <Item class="LocalScript" referent="39">
+        <Item class="LocalScript" referent="40">
           <Properties>
             <string name="Name">Mood</string>
             <string name="Source"><![CDATA[-- Local look of the world, from the player's "Mood" attribute:
@@ -3833,7 +4083,7 @@ apply()
 ]]></string>
           </Properties>
         </Item>
-        <Item class="LocalScript" referent="40">
+        <Item class="LocalScript" referent="41">
           <Properties>
             <string name="Name">Sprint</string>
             <string name="Source"><![CDATA[-- Sprinting. PC: hold Shift. Mobile: a button on screen toggles between sprint and walk.
