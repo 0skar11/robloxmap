@@ -1,7 +1,8 @@
 -- Local look of the world, from the player's "Mood" attribute:
 --   Lobby   bright, warm hall
 --   Calm    levels 1-5: a normal, bright, slightly cheerful station
---   Horror  level 6 on: dark, cold and foggy, with a dim personal light so you can still see
+--   Horror  level 6 on: dark, foggy and gloomy (colors drained to grey-green), with a dim
+--           personal light so you can still see
 -- Lighting changes made here only affect this player, so groups never fight over the look.
 
 local Lighting = game:GetService("Lighting")
@@ -30,7 +31,8 @@ local LOOKS = {
 	Horror = {
 		Lighting = { Ambient = Color3.fromRGB(34, 34, 41), OutdoorAmbient = Color3.fromRGB(8, 8, 10), ExposureCompensation = -0.05 },
 		SubwayAir = { Density = 0.32, Haze = 1.6, Color = Color3.fromRGB(22, 22, 28), Decay = Color3.fromRGB(12, 12, 15) },
-		SubwayGrade = { Brightness = -0.02, Contrast = 0.18, Saturation = -0.4, TintColor = Color3.fromRGB(222, 230, 242) },
+		-- Gloomy: colors drained almost to grey, with a cold, sickly green-grey cast.
+		SubwayGrade = { Brightness = -0.04, Contrast = 0.22, Saturation = -0.7, TintColor = Color3.fromRGB(205, 215, 205) },
 		SubwayBloom = { Intensity = 0.8, Size = 30, Threshold = 1.3 },
 		PersonalLight = true,
 	},

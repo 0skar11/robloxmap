@@ -36,7 +36,8 @@ local function moodOf(level: number): "Calm" | "Horror"
 	return if level >= Config.HorrorStartsAtLevel then "Horror" else "Calm"
 end
 
--- Calm: every light on and no hints. Horror: some lights die and the hints appear.
+-- Calm: every light on, bright colors, no hints. Horror: some lights die, colors turn gloomy, and
+-- the hints appear.
 local function applyMood(refs, mood: "Calm" | "Horror")
 	local look = Config.Moods[mood]
 	for _, fixture in refs.Lights do
@@ -52,6 +53,10 @@ local function applyMood(refs, mood: "Calm" | "Horror")
 	end
 	for _, hint in refs.Hints do
 		hint.Parent = if mood == "Horror" then refs.Station else nil
+	end
+	-- Bright station colors (green pillars, seats, bins) turn dull and grey in the dark half.
+	for _, entry in refs.Gloomy do
+		entry.Part.Color = if mood == "Horror" then entry.Horror else entry.Calm
 	end
 end
 

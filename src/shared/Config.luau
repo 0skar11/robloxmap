@@ -27,8 +27,9 @@ Config.CalmAnomalies = true
 -- Once every player stands at a door and there is a clear majority, this countdown starts.
 Config.VoteConfirmSeconds = 3
 
--- After the first vote, the decision is forced after this many seconds (ties are settled by coin flip).
-Config.VoteTimeoutSeconds = 45
+-- No time limit: everyone thinks as long as they like, and nothing is ever chosen for them.
+-- Set a number of seconds to force a decision after the first vote (ties then go to a coin flip).
+Config.VoteTimeoutSeconds = nil :: number?
 
 -- Screen fade and the "riding in the dark" pause between stations.
 Config.FadeSeconds = 1
