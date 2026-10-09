@@ -1,0 +1,1547 @@
+<roblox version="4">
+  <Item class="ReplicatedStorage" referent="0">
+    <Properties>
+      <string name="Name">ReplicatedStorage</string>
+    </Properties>
+    <Item class="Folder" referent="1">
+      <Properties>
+        <string name="Name">Shared</string>
+      </Properties>
+      <Item class="ModuleScript" referent="2">
+        <Properties>
+          <string name="Name">Config</string>
+          <string name="Source"><![CDATA[-- Tuning values for Endless Subway. Shared so the HUD can read the same numbers as the server.
+
+local Config = {}
+
+-- Five correct stations in a row clear a level.
+Config.StationsPerLevel = 5
+
+-- Chance that a station (after the first one of a level) carries an anomaly.
+Config.AnomalyChance = 0.6
+
+-- The first station of every level is always normal, so players can learn the baseline.
+Config.FirstStationOfLevelIsNormal = true
+
+-- Once every player stands at a door and there is a clear majority, this countdown starts.
+Config.VoteConfirmSeconds = 3
+
+-- After the first vote, the decision is forced after this many seconds (ties are settled by coin flip).
+Config.VoteTimeoutSeconds = 45
+
+-- Screen fade and the "riding in the dark" pause between stations.
+Config.FadeSeconds = 1
+Config.BlackoutSeconds = 2
+
+-- Prints the active anomaly to the server output. Handy while testing, spoils the game otherwise.
+Config.Debug = false
+
+-- Per-level mood. Levels 2 and 3 only change the lighting for now (build step 3 adds their own scenes).
+Config.Levels = {
+	{
+		Name = "The Last Train",
+		Ambient = Color3.fromRGB(60, 60, 70),
+		LightColor = Color3.fromRGB(255, 241, 214),
+		LightBrightness = 1.4,
+	},
+	{
+		Name = "Fractured",
+		Ambient = Color3.fromRGB(45, 40, 40),
+		LightColor = Color3.fromRGB(255, 205, 170),
+		LightBrightness = 0.9,
+	},
+	{
+		Name = "Acceptance",
+		Ambient = Color3.fromRGB(30, 34, 45),
+		LightColor = Color3.fromRGB(190, 210, 255),
+		LightBrightness = 0.6,
+	},
+}
+
+return Config
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="3">
+        <Properties>
+          <string name="Name">Net</string>
+          <string name="Source"><![CDATA[-- Shared networking folder. The server owns it; game state lives in its attributes and one-off
+-- moments (fades, messages) go through the GameEvent RemoteEvent.
+--
+-- Attributes on the folder:
+--   Phase            "Riding" (screen dark, between stations) | "Station" (doors open, voting)
+--   Level, LevelName, Station, StationsPerLevel
+--   VotesContinue, VotesBack, Voters
+--   VoteCountdown    seconds left before the vote locks in, -1 when no countdown is running
+--   VoteTie          true when everyone voted and the doors are tied
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+
+local FOLDER_NAME = "EndlessSubwayNet"
+
+local Net = {}
+
+function Net.folder(): Folder
+	if RunService:IsServer() then
+		local existing = ReplicatedStorage:FindFirstChild(FOLDER_NAME)
+		if existing then
+			return existing :: Folder
+		end
+
+		local folder = Instance.new("Folder")
+		folder.Name = FOLDER_NAME
+
+		local event = Instance.new("RemoteEvent")
+		event.Name = "GameEvent"
+		event.Parent = folder
+
+		folder.Parent = ReplicatedStorage
+		return folder
+	end
+
+	return ReplicatedStorage:WaitForChild(FOLDER_NAME) :: Folder
+end
+
+function Net.event(): RemoteEvent
+	return Net.folder():WaitForChild("GameEvent") :: RemoteEvent
+end
+
+return Net
+]]></string>
+        </Properties>
+      </Item>
+    </Item>
+  </Item>
+  <Item class="ServerScriptService" referent="4">
+    <Properties>
+      <string name="Name">ServerScriptService</string>
+    </Properties>
+    <Item class="Folder" referent="5">
+      <Properties>
+        <string name="Name">Server</string>
+      </Properties>
+      <Item class="Folder" referent="6">
+        <Properties>
+          <string name="Name">Anomalies</string>
+        </Properties>
+        <Item class="ModuleScript" referent="7">
+          <Properties>
+            <string name="Name">ExtraMissedCall</string>
+            <string name="Source"><![CDATA[-- The phone on the floor now shows 13 missed calls instead of 12.
+return {
+	Name = "ExtraMissedCall",
+	Apply = function(ctx)
+		ctx:Set(ctx.Refs.PhoneLabel, "Text", "13 مكالمة فايتة")
+	end,
+	Reset = function(ctx)
+		ctx:Restore()
+	end,
+}
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="8">
+          <Properties>
+            <string name="Name">ExtraPassenger</string>
+            <string name="Source"><![CDATA[-- Someone new is on the platform, standing with their face to the wall.
+local Mannequin = require(script.Parent.Parent.Mannequin)
+local MapBuilder = require(script.Parent.Parent.MapBuilder)
+
+local SPOTS = {
+	{ X = -50, Z = -8.5 },
+	{ X = 50, Z = -8.5 },
+	{ X = -24, Z = -8.5 },
+	{ X = 22, Z = 6 },
+}
+
+return {
+	Name = "ExtraPassenger",
+	Apply = function(ctx)
+		local spot = ctx:Pick(SPOTS)
+		-- Facing -Z means facing the back wall.
+		local pivot = MapBuilder.at(spot.X, 3, spot.Z)
+		ctx:Add(Mannequin.create("Stranger", "Stand", pivot, Color3.fromRGB(30, 30, 32)))
+	end,
+	Reset = function(ctx)
+		ctx:Restore()
+	end,
+}
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="9">
+          <Properties>
+            <string name="Name">FlickeringLight</string>
+            <string name="Source"><![CDATA[-- One ceiling light keeps flickering.
+return {
+	Name = "FlickeringLight",
+	Apply = function(ctx)
+		local fixture = ctx:Pick(ctx.Refs.Lights)
+		local light = fixture:FindFirstChildOfClass("SurfaceLight")
+
+		-- Record the originals first so Restore turns the light back on.
+		ctx:Set(fixture, "Material", fixture.Material)
+		ctx:Set(light, "Enabled", true)
+
+		ctx:Spawn(function()
+			while true do
+				local on = ctx.Random:NextNumber() > 0.35
+				light.Enabled = on
+				fixture.Material = if on then Enum.Material.Neon else Enum.Material.SmoothPlastic
+				task.wait(ctx.Random:NextNumber(0.05, 0.4))
+			end
+		end)
+	end,
+	Reset = function(ctx)
+		ctx:Restore()
+	end,
+}
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="10">
+          <Properties>
+            <string name="Name">MissingPassenger</string>
+            <string name="Source"><![CDATA[-- One of the passengers is gone.
+return {
+	Name = "MissingPassenger",
+	Apply = function(ctx)
+		ctx:Set(ctx:Pick(ctx.Refs.Passengers), "Parent", nil)
+	end,
+	Reset = function(ctx)
+		ctx:Restore()
+	end,
+}
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="11">
+          <Properties>
+            <string name="Name">MissingPillar</string>
+            <string name="Source"><![CDATA[-- One of the pillars is missing. The middle one stays: the flowers lean on it.
+return {
+	Name = "MissingPillar",
+	Apply = function(ctx)
+		local candidates = {}
+		for _, pillar in ctx.Refs.Pillars do
+			if pillar:GetAttribute("X") ~= 0 then
+				table.insert(candidates, pillar)
+			end
+		end
+		ctx:Set(ctx:Pick(candidates), "Parent", nil)
+	end,
+	Reset = function(ctx)
+		ctx:Restore()
+	end,
+}
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="12">
+          <Properties>
+            <string name="Name">NamedPoster</string>
+            <string name="Source"><![CDATA[-- An advertisement now carries one of the players' names.
+return {
+	Name = "NamedPoster",
+	Apply = function(ctx)
+		local name = if #ctx.Players > 0 then ctx:Pick(ctx.Players).DisplayName else "محمد"
+		ctx:Set(ctx:Pick(ctx.Refs.Posters), "Text", name .. "\nمتنساش تنزل هنا")
+	end,
+	Reset = function(ctx)
+		ctx:Restore()
+	end,
+}
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="13">
+          <Properties>
+            <string name="Name">StaringPassengers</string>
+            <string name="Source"><![CDATA[-- Every passenger's head slowly follows the nearest player.
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local TURN_SPEED = 3
+
+local function nearestHead(position: Vector3): Vector3?
+	local best, bestDistance = nil, math.huge
+	for _, player in Players:GetPlayers() do
+		local head = player.Character and player.Character:FindFirstChild("Head")
+		if head and head:IsA("BasePart") then
+			local distance = (head.Position - position).Magnitude
+			if distance < bestDistance then
+				best, bestDistance = head.Position, distance
+			end
+		end
+	end
+	return best
+end
+
+return {
+	Name = "StaringPassengers",
+	Apply = function(ctx)
+		local heads = {}
+		for _, passenger in ctx.Refs.Passengers do
+			local head = passenger:FindFirstChild("Head")
+			-- Record the resting pose; the loop below moves the head directly.
+			ctx:Set(head, "CFrame", head.CFrame)
+			table.insert(heads, head)
+		end
+
+		ctx:Connect(RunService.Heartbeat, function(dt)
+			for _, head in heads do
+				local target = nearestHead(head.Position)
+				if target then
+					local goal = CFrame.lookAt(head.Position, target)
+					head.CFrame = head.CFrame:Lerp(goal, math.min(1, dt * TURN_SPEED))
+				end
+			end
+		end)
+	end,
+	Reset = function(ctx)
+		ctx:Restore()
+	end,
+}
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="14">
+          <Properties>
+            <string name="Name">StoppedClock</string>
+            <string name="Source"><![CDATA[-- The station clock is stuck on the time the train arrives and never ticks.
+return {
+	Name = "StoppedClock",
+	Apply = function(ctx)
+		ctx:SetAttribute(ctx.Refs.Clock, "Frozen", true)
+		ctx:Set(ctx.Refs.ClockLabel, "Text", "23:57:00")
+	end,
+	Reset = function(ctx)
+		ctx:Restore()
+	end,
+}
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="15">
+          <Properties>
+            <string name="Name">TurnedBench</string>
+            <string name="Source"><![CDATA[-- The empty bench has been turned to face the wall.
+return {
+	Name = "TurnedBench",
+	Apply = function(ctx)
+		local candidates = {}
+		for _, bench in ctx.Refs.Benches do
+			if bench:GetAttribute("Free") then
+				table.insert(candidates, bench)
+			end
+		end
+		local bench = ctx:Pick(candidates)
+		ctx:Pivot(bench, bench:GetPivot() * CFrame.Angles(0, math.pi, 0))
+	end,
+	Reset = function(ctx)
+		ctx:Restore()
+	end,
+}
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="16">
+          <Properties>
+            <string name="Name">WrongLineNumber</string>
+            <string name="Source"><![CDATA[-- The line badge reads 41 instead of 14.
+return {
+	Name = "WrongLineNumber",
+	Apply = function(ctx)
+		ctx:Set(ctx.Refs.LineBadge, "Text", "41")
+	end,
+	Reset = function(ctx)
+		ctx:Restore()
+	end,
+}
+]]></string>
+          </Properties>
+        </Item>
+      </Item>
+      <Item class="ModuleScript" referent="17">
+        <Properties>
+          <string name="Name">AnomalyContext</string>
+          <string name="Source"><![CDATA[-- Handed to an anomaly's Apply and Reset. Every change made through it is recorded, so
+-- ctx:Restore() puts the station back exactly as it was, whatever the anomaly did.
+--
+--   ctx.Refs        everything MapBuilder.build() returned (lights, posters, passengers, ...)
+--   ctx.Players     players in the server when the station started
+--   ctx.Random      a Random object, so a station can be replayed from its seed
+--
+--   ctx:Set(instance, property, value)       change a property (Parent = nil hides something)
+--   ctx:SetAttribute(instance, name, value)  change an attribute
+--   ctx:Pivot(model, cframe)                 move a model
+--   ctx:Add(instance, parent?)               add something new; destroyed on restore
+--   ctx:Connect(signal, callback)            disconnected on restore
+--   ctx:Spawn(callback)                      a thread that is cancelled on restore
+--   ctx:Pick(list)                           random element of a list
+
+local AnomalyContext = {}
+AnomalyContext.__index = AnomalyContext
+
+export type Context = typeof(setmetatable(
+	{} :: {
+		Refs: any,
+		Players: { Player },
+		Random: Random,
+		_undo: { () -> () },
+	},
+	AnomalyContext
+))
+
+function AnomalyContext.new(refs: any, players: { Player }, random: Random): Context
+	return setmetatable({
+		Refs = refs,
+		Players = players,
+		Random = random,
+		_undo = {},
+	}, AnomalyContext)
+end
+
+function AnomalyContext.Set(self: Context, instance: Instance, property: string, value: any)
+	local target = instance :: any
+	local original = target[property]
+	table.insert(self._undo, function()
+		target[property] = original
+	end)
+	target[property] = value
+end
+
+function AnomalyContext.SetAttribute(self: Context, instance: Instance, name: string, value: any)
+	local original = instance:GetAttribute(name)
+	table.insert(self._undo, function()
+		instance:SetAttribute(name, original)
+	end)
+	instance:SetAttribute(name, value)
+end
+
+function AnomalyContext.Pivot(self: Context, model: PVInstance, cframe: CFrame)
+	local original = model:GetPivot()
+	table.insert(self._undo, function()
+		model:PivotTo(original)
+	end)
+	model:PivotTo(cframe)
+end
+
+function AnomalyContext.Add(self: Context, instance: Instance, parent: Instance?): Instance
+	table.insert(self._undo, function()
+		instance:Destroy()
+	end)
+	instance.Parent = parent or self.Refs.Station
+	return instance
+end
+
+function AnomalyContext.Connect(self: Context, signal: RBXScriptSignal, callback: (...any) -> ()): RBXScriptConnection
+	local connection = signal:Connect(callback)
+	table.insert(self._undo, function()
+		connection:Disconnect()
+	end)
+	return connection
+end
+
+function AnomalyContext.Spawn(self: Context, callback: () -> ()): thread
+	local thread = task.spawn(callback)
+	table.insert(self._undo, function()
+		if coroutine.status(thread) ~= "dead" then
+			task.cancel(thread)
+		end
+	end)
+	return thread
+end
+
+function AnomalyContext.Pick<T>(self: Context, list: { T }): T
+	return list[self.Random:NextInteger(1, #list)]
+end
+
+-- Undoes everything in reverse order, so stacked changes to one property unwind correctly.
+function AnomalyContext.Restore(self: Context)
+	for i = #self._undo, 1, -1 do
+		local ok, err = pcall(self._undo[i])
+		if not ok then
+			warn("[EndlessSubway] restore step failed:", err)
+		end
+	end
+	table.clear(self._undo)
+end
+
+return AnomalyContext
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="18">
+        <Properties>
+          <string name="Name">AnomalyRegistry</string>
+          <string name="Source"><![CDATA[-- Loads every ModuleScript in the Anomalies folder. To add an anomaly, drop a new module there:
+--
+--   return {
+--       Name = "MyAnomaly",
+--       Apply = function(ctx) ctx:Set(ctx.Refs.LineBadge, "Text", "41") end,
+--       Reset = function(ctx) ctx:Restore() end,
+--   }
+
+export type Anomaly = {
+	Name: string,
+	Apply: (ctx: any) -> (),
+	Reset: (ctx: any) -> (),
+}
+
+local AnomalyRegistry = {}
+
+function AnomalyRegistry.load(): { Anomaly }
+	local anomalies = {}
+	for _, module in script.Parent.Anomalies:GetChildren() do
+		if not module:IsA("ModuleScript") then
+			continue
+		end
+
+		local ok, anomaly = pcall(require, module)
+		if not ok or type(anomaly) ~= "table" or type(anomaly.Apply) ~= "function" then
+			warn("[EndlessSubway] skipping anomaly", module.Name, if ok then "(no Apply function)" else anomaly)
+			continue
+		end
+
+		anomaly.Name = anomaly.Name or module.Name
+		anomaly.Reset = anomaly.Reset or function(ctx)
+			ctx:Restore()
+		end
+		table.insert(anomalies, anomaly)
+	end
+
+	table.sort(anomalies, function(a, b)
+		return a.Name < b.Name
+	end)
+	return anomalies
+end
+
+return AnomalyRegistry
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="19">
+        <Properties>
+          <string name="Name">GameLoop</string>
+          <string name="Source"><![CDATA[-- The station loop: the train stops, the players look around, they vote on a door, the screen
+-- goes dark, and the same station comes back with the counter moved on (or reset).
+--
+-- Rule: a normal station means "Continue"; a station with something wrong means "Back".
+-- A right call moves the counter up; a wrong one sends everyone to the start of the level.
+
+local Lighting = game:GetService("Lighting")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+
+local Config = require(ReplicatedStorage.Shared.Config)
+local Net = require(ReplicatedStorage.Shared.Net)
+local AnomalyContext = require(script.Parent.AnomalyContext)
+local AnomalyRegistry = require(script.Parent.AnomalyRegistry)
+local VoteManager = require(script.Parent.VoteManager)
+
+local CLOCK_START_SECONDS = 23 * 3600 + 57 * 60
+local DOOR_TWEEN = TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut)
+
+local GameLoop = {}
+
+local function setDoors(refs, open: boolean)
+	for _, panel in refs.DoorPanels do
+		TweenService:Create(panel.Part, DOOR_TWEEN, { CFrame = if open then panel.Open else panel.Closed }):Play()
+	end
+end
+
+local function applyLevelMood(refs, level: number)
+	local mood = Config.Levels[level]
+	Lighting.Ambient = mood.Ambient
+	Lighting.OutdoorAmbient = Color3.new(0, 0, 0)
+	Lighting.Brightness = 0
+	Lighting.ClockTime = 0
+	for _, fixture in refs.Lights do
+		fixture.Color = mood.LightColor
+		local light = fixture:FindFirstChildOfClass("SurfaceLight")
+		if light then
+			light.Color = mood.LightColor
+			light.Brightness = mood.LightBrightness
+		end
+	end
+end
+
+-- Ticks the station clock from 23:57:00 every time the train stops, unless an anomaly froze it.
+local function runClock(refs, stationStartedAt: () -> number)
+	task.spawn(function()
+		while refs.Map.Parent do
+			if not refs.Clock:GetAttribute("Frozen") then
+				local seconds = CLOCK_START_SECONDS + math.floor(os.clock() - stationStartedAt())
+				refs.ClockLabel.Text = string.format("%02d:%02d:%02d", seconds // 3600 % 24, seconds // 60 % 60, seconds % 60)
+			end
+			task.wait(0.25)
+		end
+	end)
+end
+
+local function boardTrain(refs)
+	for i, player in Players:GetPlayers() do
+		local character = player.Character
+		if character and character:FindFirstChild("HumanoidRootPart") then
+			character:PivotTo(refs.StandPoints[(i - 1) % #refs.StandPoints + 1])
+		end
+	end
+end
+
+local function waitForPlayers()
+	while #Players:GetPlayers() == 0 do
+		Players.PlayerAdded:Wait()
+	end
+	-- Give the first character a moment to spawn into the car.
+	task.wait(2)
+end
+
+function GameLoop.run(refs)
+	local net = Net.folder()
+	local event = Net.event()
+	local anomalies = AnomalyRegistry.load()
+	local random = Random.new()
+
+	local level = 1
+	local station = 0
+	local enteringLevel = true
+	local lastAnomaly = nil
+	local stationStartedAt = os.clock()
+
+	net:SetAttribute("StationsPerLevel", Config.StationsPerLevel)
+	runClock(refs, function()
+		return stationStartedAt
+	end)
+
+	local function publishState(phase: string)
+		net:SetAttribute("Phase", phase)
+		net:SetAttribute("Level", level)
+		net:SetAttribute("LevelName", Config.Levels[level].Name)
+		net:SetAttribute("Station", station)
+		refs.CounterLabel.Text = string.format("Level %d\nالمحطة %d / %d", level, station, Config.StationsPerLevel)
+	end
+
+	local function message(text: string, duration: number?)
+		event:FireAllClients({ Kind = "Message", Text = text, Duration = duration or 3 })
+	end
+
+	local function fade(visible: boolean)
+		event:FireAllClients({ Kind = "Fade", Visible = visible, Duration = Config.FadeSeconds })
+		task.wait(Config.FadeSeconds)
+	end
+
+	local function pickAnomaly()
+		if (enteringLevel and Config.FirstStationOfLevelIsNormal) or #anomalies == 0 then
+			return nil
+		end
+		if random:NextNumber() >= Config.AnomalyChance then
+			return nil
+		end
+		-- Never the same anomaly twice in a row.
+		local pool = {}
+		for _, anomaly in anomalies do
+			if anomaly ~= lastAnomaly or #anomalies == 1 then
+				table.insert(pool, anomaly)
+			end
+		end
+		return pool[random:NextInteger(1, #pool)]
+	end
+
+	publishState("Riding")
+	applyLevelMood(refs, level)
+	waitForPlayers()
+
+	while true do
+		-- Set up the next station while the screen is dark.
+		local anomaly = pickAnomaly()
+		local ctx = AnomalyContext.new(refs, Players:GetPlayers(), random)
+		if anomaly then
+			local ok, err = pcall(anomaly.Apply, ctx)
+			if not ok then
+				warn("[EndlessSubway] anomaly", anomaly.Name, "failed to apply:", err)
+				ctx:Restore()
+				anomaly = nil
+			end
+		end
+		lastAnomaly = anomaly or lastAnomaly
+		enteringLevel = false
+		if Config.Debug then
+			print("[EndlessSubway] Level", level, "station", station, "anomaly:", anomaly and anomaly.Name or "none")
+		end
+
+		setDoors(refs, false)
+		boardTrain(refs)
+		stationStartedAt = os.clock()
+		publishState("Riding")
+		fade(false)
+
+		-- The train has stopped: doors open and the players decide.
+		setDoors(refs, true)
+		publishState("Station")
+		local choice, byCoinFlip = VoteManager.collect(refs.Doors, net, random)
+
+		publishState("Riding")
+		if byCoinFlip then
+			message("تعادل… القرعة اختارت \"" .. (if choice == "Continue" then "كمّل" else "ارجع") .. "\"", 2)
+		end
+		fade(true)
+
+		if anomaly then
+			local ok, err = pcall(anomaly.Reset, ctx)
+			if not ok then
+				warn("[EndlessSubway] anomaly", anomaly.Name, "failed to reset:", err)
+			end
+		end
+		-- Restore is idempotent, so this also covers anomalies whose Reset forgot to call it.
+		ctx:Restore()
+
+		if choice == nil then
+			-- Everyone left: start over for the next group.
+			level, station, enteringLevel, lastAnomaly = 1, 0, true, nil
+			applyLevelMood(refs, level)
+			publishState("Riding")
+			waitForPlayers()
+			continue
+		end
+
+		local correct = (choice == "Continue") == (anomaly == nil)
+		if correct then
+			station += 1
+			if station >= Config.StationsPerLevel then
+				station = 0
+				enteringLevel = true
+				if level < #Config.Levels then
+					level += 1
+					message("Level " .. level .. " — " .. Config.Levels[level].Name, 3)
+				else
+					level = 1
+					message("وصلتوا للنهاية… (المشهد الأخير لسه بيتبني)", 4)
+				end
+				applyLevelMood(refs, level)
+			end
+		else
+			station = 0
+			message("غلط… رجعتوا لأول الـ Level", 3)
+		end
+
+		publishState("Riding")
+		task.wait(Config.BlackoutSeconds)
+	end
+end
+
+return GameLoop
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="Script" referent="20">
+        <Properties>
+          <string name="Name">Main</string>
+          <token name="RunContext">0</token>
+          <string name="Source"><![CDATA[-- Endless Subway: builds the station and starts the loop.
+
+local MapBuilder = require(script.Parent.MapBuilder)
+local GameLoop = require(script.Parent.GameLoop)
+
+GameLoop.run(MapBuilder.build())
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="21">
+        <Properties>
+          <string name="Name">Mannequin</string>
+          <string name="Source"><![CDATA[-- Faceless block passengers built from anchored parts, so the map needs no uploaded assets.
+-- The model's pivot is the hip point; it faces the CFrame's LookVector.
+
+local Mannequin = {}
+
+local SKIN = Color3.fromRGB(204, 176, 150)
+
+local function addPart(model: Model, name: string, size: Vector3, offset: CFrame, color: Color3): Part
+	local part = Instance.new("Part")
+	part.Name = name
+	part.Size = size
+	part.CFrame = offset
+	part.Color = color
+	part.Material = Enum.Material.SmoothPlastic
+	part.Anchored = true
+	part.CanCollide = true
+	part.TopSurface = Enum.SurfaceType.Smooth
+	part.BottomSurface = Enum.SurfaceType.Smooth
+	part.Parent = model
+	return part
+end
+
+local function addEyes(head: Part)
+	local gui = Instance.new("SurfaceGui")
+	gui.Name = "Eyes"
+	gui.Face = Enum.NormalId.Front
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.PixelsPerStud = 60
+	gui.Parent = head
+
+	for _, x in { 0.28, 0.72 } do
+		local eye = Instance.new("Frame")
+		eye.AnchorPoint = Vector2.new(0.5, 0.5)
+		eye.Position = UDim2.fromScale(x, 0.42)
+		eye.Size = UDim2.fromScale(0.12, 0.12)
+		eye.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+		eye.BorderSizePixel = 0
+		eye.Parent = gui
+
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0.5, 0)
+		corner.Parent = eye
+	end
+end
+
+-- pose: "Stand" (pivot 2 studs above the floor) or "Sit" (pivot on the seat surface).
+function Mannequin.create(name: string, pose: "Stand" | "Sit", pivot: CFrame, clothes: Color3): Model
+	local model = Instance.new("Model")
+	model.Name = name
+
+	local pants = clothes:Lerp(Color3.new(0, 0, 0), 0.5)
+
+	local torso = addPart(model, "Torso", Vector3.new(2, 2, 1), CFrame.new(0, 1, 0), clothes)
+	local leftArm = addPart(model, "LeftArm", Vector3.new(1, 2, 1), CFrame.new(-1.5, 1, 0), clothes)
+	local rightArm = addPart(model, "RightArm", Vector3.new(1, 2, 1), CFrame.new(1.5, 1, 0), clothes)
+	local head = addPart(model, "Head", Vector3.new(1.2, 1.2, 1.2), CFrame.new(0, 2.6, 0), SKIN)
+	addEyes(head)
+
+	if pose == "Stand" then
+		addPart(model, "LeftLeg", Vector3.new(1, 2, 1), CFrame.new(-0.5, -1, 0), pants)
+		addPart(model, "RightLeg", Vector3.new(1, 2, 1), CFrame.new(0.5, -1, 0), pants)
+	else
+		addPart(model, "LeftThigh", Vector3.new(1, 1, 2), CFrame.new(-0.5, 0.5, -0.5), pants)
+		addPart(model, "RightThigh", Vector3.new(1, 1, 2), CFrame.new(0.5, 0.5, -0.5), pants)
+		addPart(model, "LeftShin", Vector3.new(1, 2.4, 1), CFrame.new(-0.5, -0.7, -1), pants)
+		addPart(model, "RightShin", Vector3.new(1, 2.4, 1), CFrame.new(0.5, -0.7, -1), pants)
+		torso.CFrame = CFrame.new(0, 2, 0)
+		leftArm.CFrame = CFrame.new(-1.5, 2, 0)
+		rightArm.CFrame = CFrame.new(1.5, 2, 0)
+		head.CFrame = CFrame.new(0, 3.6, 0)
+	end
+
+	model.PrimaryPart = torso
+	-- Parts were laid out around the origin, so the origin is the hip pivot.
+	model.WorldPivot = CFrame.new()
+	model:PivotTo(pivot)
+	return model
+end
+
+return Mannequin
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="22">
+        <Properties>
+          <string name="Name">MapBuilder</string>
+          <string name="Source"><![CDATA[-- Builds the whole station in code: one metro car and one platform, plus the baseline details
+-- that anomalies change and the hints that point at the twist.
+--
+-- Layout (studs, relative to ORIGIN). The platform runs along X, the track is on +Z.
+--   Platform floor      X -60..60, Z -10..10, top at Y 1
+--   Train car           X -20..20, Z 10..19, doors on the platform side (Z 11)
+--   "كمّل" (Continue)    door at the +X end of the platform
+--   "ارجع" (Go back)     door at the -X end of the platform
+
+local Workspace = game:GetService("Workspace")
+
+local Mannequin = require(script.Parent.Mannequin)
+
+local MapBuilder = {}
+
+local ORIGIN = CFrame.new(0, 50, 0)
+
+local COLORS = {
+	Floor = Color3.fromRGB(150, 146, 138),
+	Wall = Color3.fromRGB(221, 214, 196),
+	Ceiling = Color3.fromRGB(90, 90, 92),
+	Pillar = Color3.fromRGB(196, 186, 160),
+	Edge = Color3.fromRGB(245, 197, 24),
+	CarBody = Color3.fromRGB(200, 204, 210),
+	CarStripe = Color3.fromRGB(245, 197, 24),
+	CarSeat = Color3.fromRGB(70, 90, 140),
+	Dark = Color3.fromRGB(25, 25, 28),
+	Bench = Color3.fromRGB(120, 84, 52),
+	Continue = Color3.fromRGB(46, 160, 90),
+	Back = Color3.fromRGB(190, 60, 55),
+	Light = Color3.fromRGB(255, 241, 214),
+}
+
+local ARABIC_MONTHS = {
+	"يناير",
+	"فبراير",
+	"مارس",
+	"أبريل",
+	"مايو",
+	"يونيو",
+	"يوليو",
+	"أغسطس",
+	"سبتمبر",
+	"أكتوبر",
+	"نوفمبر",
+	"ديسمبر",
+}
+
+local function at(x: number, y: number, z: number): CFrame
+	return ORIGIN * CFrame.new(x, y, z)
+end
+
+local function block(parent: Instance, name: string, size: Vector3, cframe: CFrame, color: Color3, material: Enum.Material?): Part
+	local part = Instance.new("Part")
+	part.Name = name
+	part.Size = size
+	part.CFrame = cframe
+	part.Color = color
+	part.Material = material or Enum.Material.SmoothPlastic
+	part.Anchored = true
+	part.TopSurface = Enum.SurfaceType.Smooth
+	part.BottomSurface = Enum.SurfaceType.Smooth
+	part.Parent = parent
+	return part
+end
+
+local function invisibleWall(parent: Instance, name: string, size: Vector3, cframe: CFrame): Part
+	local part = block(parent, name, size, cframe, COLORS.Dark)
+	part.Transparency = 1
+	part.CastShadow = false
+	return part
+end
+
+type TextOptions = {
+	Background: Color3?,
+	TextColor: Color3?,
+	Glow: boolean?,
+	PixelsPerStud: number?,
+}
+
+-- Puts a scaled TextLabel on one face of a part and returns the label.
+local function surfaceText(target: BasePart, face: Enum.NormalId, text: string, options: TextOptions?): TextLabel
+	local opts: TextOptions = options or {}
+
+	local gui = Instance.new("SurfaceGui")
+	gui.Name = "Display"
+	gui.Face = face
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.PixelsPerStud = opts.PixelsPerStud or 40
+	gui.LightInfluence = if opts.Glow then 0 else 1
+	gui.Parent = target
+
+	local label = Instance.new("TextLabel")
+	label.Name = "Text"
+	label.Size = UDim2.fromScale(1, 1)
+	label.BackgroundColor3 = opts.Background or Color3.new(1, 1, 1)
+	label.BackgroundTransparency = if opts.Background then 0 else 1
+	label.BorderSizePixel = 0
+	label.TextColor3 = opts.TextColor or Color3.new(1, 1, 1)
+	label.Font = Enum.Font.GothamBold
+	label.TextScaled = true
+	label.Text = text
+	label.Parent = gui
+
+	local padding = Instance.new("UIPadding")
+	padding.PaddingLeft = UDim.new(0.06, 0)
+	padding.PaddingRight = UDim.new(0.06, 0)
+	padding.PaddingTop = UDim.new(0.08, 0)
+	padding.PaddingBottom = UDim.new(0.08, 0)
+	padding.Parent = label
+
+	return label
+end
+
+local function tomorrowText(): string
+	local date = os.date("*t", os.time() + 24 * 60 * 60)
+	return string.format("%d %s %d", date.day, ARABIC_MONTHS[date.month], date.year)
+end
+
+local function clearDefaultPlace()
+	-- A fresh "Baseplate" place ships a baseplate and a spawn; players must spawn in the train instead.
+	local baseplate = Workspace:FindFirstChild("Baseplate")
+	if baseplate and baseplate:IsA("BasePart") then
+		baseplate:Destroy()
+	end
+	for _, descendant in Workspace:GetDescendants() do
+		if descendant:IsA("SpawnLocation") then
+			descendant.Enabled = false
+		end
+	end
+end
+
+local function buildShell(map: Folder)
+	local shell = Instance.new("Folder")
+	shell.Name = "Shell"
+	shell.Parent = map
+
+	block(shell, "Platform", Vector3.new(120, 5, 20), at(0, -1.5, 0), COLORS.Floor, Enum.Material.Concrete)
+	block(shell, "PlatformEdge", Vector3.new(120, 0.1, 1), at(0, 1.05, 9.5), COLORS.Edge)
+	block(shell, "BackWall", Vector3.new(122, 20, 1), at(0, 6, -10.5), COLORS.Wall, Enum.Material.CeramicTiles)
+	block(shell, "TunnelWall", Vector3.new(122, 20, 1), at(0, 6, 21.5), COLORS.Dark, Enum.Material.Concrete)
+	block(shell, "Ceiling", Vector3.new(122, 1, 33), at(0, 16.5, 5.5), COLORS.Ceiling, Enum.Material.Concrete)
+	block(shell, "TrackBed", Vector3.new(120, 1, 11), at(0, -3.5, 15.5), COLORS.Dark, Enum.Material.Slate)
+	block(shell, "RailNear", Vector3.new(120, 0.4, 0.4), at(0, -2.8, 13.5), Color3.fromRGB(110, 110, 115), Enum.Material.Metal)
+	block(shell, "RailFar", Vector3.new(120, 0.4, 0.4), at(0, -2.8, 17.5), Color3.fromRGB(110, 110, 115), Enum.Material.Metal)
+
+	-- Keep players on the platform and in the car.
+	invisibleWall(shell, "EdgeBarrierWest", Vector3.new(40, 15, 0.5), at(-40, 8.5, 10.25))
+	invisibleWall(shell, "EdgeBarrierEast", Vector3.new(40, 15, 0.5), at(40, 8.5, 10.25))
+end
+
+local function buildExitDoor(map: Folder, kind: "Continue" | "Back")
+	local sign = if kind == "Continue" then 1 else -1
+	local color = if kind == "Continue" then COLORS.Continue else COLORS.Back
+	local face = if kind == "Continue" then Enum.NormalId.Left else Enum.NormalId.Right
+
+	local model = Instance.new("Model")
+	model.Name = kind .. "Door"
+	model.Parent = map
+
+	block(model, "EndWall", Vector3.new(1, 20, 33), at(sign * 60.5, 6, 5.5), COLORS.Wall, Enum.Material.CeramicTiles)
+	local door = block(model, "Door", Vector3.new(0.4, 8, 5), at(sign * 59.8, 5, 0), COLORS.Dark, Enum.Material.Metal)
+	block(model, "Frame", Vector3.new(0.3, 9, 6), at(sign * 59.95, 5.5, 0), color)
+
+	local title = if kind == "Continue" then "كمّل" else "ارجع"
+	local signPart = block(model, "Sign", Vector3.new(0.4, 2, 8), at(sign * 59.8, 11, 0), color)
+	surfaceText(signPart, face, title, { TextColor = Color3.new(1, 1, 1), Glow = true })
+
+	-- Players vote by standing on this zone in front of the door.
+	local zone = block(model, "VoteZone", Vector3.new(10, 0.1, 14), at(sign * 53, 1.06, 0), color, Enum.Material.Neon)
+	zone.Transparency = 0.7
+	zone.CanCollide = false
+	zone.CanQuery = false
+	zone.CastShadow = false
+
+	return { Model = model, Door = door, Zone = zone }
+end
+
+local function buildCar(map: Folder)
+	local car = Instance.new("Model")
+	car.Name = "TrainCar"
+	car.Parent = map
+
+	block(car, "Floor", Vector3.new(40, 4, 9), at(0, -1, 14.5), Color3.fromRGB(80, 80, 85), Enum.Material.DiamondPlate)
+	block(car, "Roof", Vector3.new(40, 1, 9), at(0, 10.5, 14.5), COLORS.CarBody, Enum.Material.Metal)
+	block(car, "FarWall", Vector3.new(40, 9, 0.5), at(0, 5.5, 18.75), COLORS.CarBody, Enum.Material.Metal)
+	block(car, "Window", Vector3.new(36, 2.5, 0.1), at(0, 6.5, 18.45), Color3.fromRGB(10, 12, 16), Enum.Material.Glass)
+	block(car, "Stripe", Vector3.new(40, 0.6, 0.1), at(0, 8.4, 18.45), COLORS.CarStripe)
+	block(car, "EndWallWest", Vector3.new(0.5, 9, 9), at(-19.75, 5.5, 14.5), COLORS.CarBody, Enum.Material.Metal)
+	block(car, "EndWallEast", Vector3.new(0.5, 9, 9), at(19.75, 5.5, 14.5), COLORS.CarBody, Enum.Material.Metal)
+
+	-- Platform side: three wall segments with two door openings (X -12.5..-7.5 and 7.5..12.5).
+	block(car, "SideWallWest", Vector3.new(7.5, 9, 0.5), at(-16.25, 5.5, 11.25), COLORS.CarBody, Enum.Material.Metal)
+	block(car, "SideWallMiddle", Vector3.new(15, 9, 0.5), at(0, 5.5, 11.25), COLORS.CarBody, Enum.Material.Metal)
+	block(car, "SideWallEast", Vector3.new(7.5, 9, 0.5), at(16.25, 5.5, 11.25), COLORS.CarBody, Enum.Material.Metal)
+
+	local doorPanels = {}
+	for _, centerX in { -10, 10 } do
+		block(car, "DoorHeader", Vector3.new(5, 2, 0.5), at(centerX, 9, 11.25), COLORS.CarBody, Enum.Material.Metal)
+		for _, side in { -1, 1 } do
+			local closed = at(centerX + side * 1.25, 4.5, 11.75)
+			local open = at(centerX + side * 3.6, 4.5, 11.75)
+			local panel = block(car, "DoorPanel", Vector3.new(2.5, 7, 0.3), closed, Color3.fromRGB(170, 175, 182), Enum.Material.Metal)
+			table.insert(doorPanels, { Part = panel, Closed = closed, Open = open })
+		end
+	end
+
+	-- Seats along the far wall, poles down the middle, a light strip on the roof.
+	for _, centerX in { -10, 10 } do
+		block(car, "Seat", Vector3.new(14, 0.6, 1.8), at(centerX, 2.6, 17.6), COLORS.CarSeat, Enum.Material.Fabric)
+		block(car, "SeatBack", Vector3.new(14, 2.5, 0.4), at(centerX, 4, 18.3), COLORS.CarSeat, Enum.Material.Fabric)
+	end
+	for _, x in { -15, 0, 15 } do
+		local pole = block(car, "Pole", Vector3.new(9, 0.3, 0.3), at(x, 5.5, 14.5) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(190, 190, 195), Enum.Material.Metal)
+		pole.Shape = Enum.PartType.Cylinder
+	end
+	local strip = block(car, "LightStrip", Vector3.new(36, 0.2, 0.8), at(0, 9.9, 14.5), Color3.fromRGB(240, 245, 255), Enum.Material.Neon)
+	local carLight = Instance.new("SurfaceLight")
+	carLight.Face = Enum.NormalId.Bottom
+	carLight.Range = 12
+	carLight.Angle = 120
+	carLight.Brightness = 1.2
+	carLight.Parent = strip
+
+	local spawn = Instance.new("SpawnLocation")
+	spawn.Name = "TrainSpawn"
+	spawn.Size = Vector3.new(8, 0.1, 2)
+	spawn.CFrame = at(0, 1.05, 13.5)
+	spawn.Anchored = true
+	spawn.CanCollide = false
+	spawn.Transparency = 1
+	spawn.Neutral = true
+	spawn.Duration = 0
+	spawn.Parent = car
+
+	local standPoints = {}
+	for x = -16, 16, 4 do
+		table.insert(standPoints, at(x, 4, 13.5))
+	end
+
+	return car, doorPanels, standPoints
+end
+
+local function buildStation(map: Folder, refs)
+	local station = Instance.new("Folder")
+	station.Name = "Station"
+	station.Parent = map
+
+	-- Pillars down the middle of the platform.
+	refs.Pillars = {}
+	for _, x in { -40, -20, 0, 20, 40 } do
+		local pillar = block(station, "Pillar", Vector3.new(2, 15, 2), at(x, 8.5, 1), COLORS.Pillar, Enum.Material.Marble)
+		pillar:SetAttribute("X", x)
+		table.insert(refs.Pillars, pillar)
+	end
+
+	-- Ceiling lights.
+	refs.Lights = {}
+	for x = -50, 50, 20 do
+		local fixture = block(station, "Light", Vector3.new(8, 0.2, 1), at(x, 15.9, 0), COLORS.Light, Enum.Material.Neon)
+		local light = Instance.new("SurfaceLight")
+		light.Face = Enum.NormalId.Bottom
+		light.Range = 18
+		light.Angle = 120
+		light.Color = COLORS.Light
+		light.Brightness = 1.4
+		light.Parent = fixture
+		table.insert(refs.Lights, fixture)
+	end
+
+	-- Benches against the back wall, facing the track.
+	refs.Benches = {}
+	for _, x in { -30, -10, 10, 30 } do
+		local bench = Instance.new("Model")
+		bench.Name = "Bench"
+		local seat = block(bench, "Seat", Vector3.new(6, 0.5, 1.8), at(x, 2.75, -8.3), COLORS.Bench, Enum.Material.WoodPlanks)
+		block(bench, "Backrest", Vector3.new(6, 1.8, 0.4), at(x, 4, -9.2), COLORS.Bench, Enum.Material.WoodPlanks)
+		block(bench, "LegWest", Vector3.new(0.4, 1.5, 1.4), at(x - 2.6, 1.75, -8.3), COLORS.Dark, Enum.Material.Metal)
+		block(bench, "LegEast", Vector3.new(0.4, 1.5, 1.4), at(x + 2.6, 1.75, -8.3), COLORS.Dark, Enum.Material.Metal)
+		bench.PrimaryPart = seat
+		bench:SetAttribute("Free", x == 10)
+		bench.Parent = station
+		table.insert(refs.Benches, bench)
+	end
+
+	-- Station name and line badge.
+	local nameSign = block(station, "StationSign", Vector3.new(16, 3, 0.3), at(0, 11, -9.85), Color3.fromRGB(20, 40, 80))
+	refs.StationName = surfaceText(nameSign, Enum.NormalId.Back, "محطة النور", { TextColor = Color3.new(1, 1, 1) })
+	local badge = block(station, "LineBadge", Vector3.new(3, 3, 0.3), at(10, 11, -9.85), COLORS.Edge)
+	refs.LineBadge = surfaceText(badge, Enum.NormalId.Back, "14", { TextColor = COLORS.Dark })
+
+	-- Digital clock. The game loop ticks it unless its "Frozen" attribute is set.
+	refs.Clock = block(station, "Clock", Vector3.new(3.4, 1.4, 0.3), at(-10, 11, -9.85), COLORS.Dark)
+	refs.ClockLabel = surfaceText(refs.Clock, Enum.NormalId.Back, "23:57:00", {
+		TextColor = Color3.fromRGB(255, 60, 50),
+		Glow = true,
+	})
+
+	-- Hanging counter sign, readable when stepping out of the car.
+	local counter = block(station, "CounterSign", Vector3.new(7, 2.6, 0.3), at(0, 13.5, 7), COLORS.Dark)
+	block(station, "CounterHanger", Vector3.new(0.2, 1.7, 0.2), at(0, 15.15, 7), COLORS.Dark, Enum.Material.Metal)
+	refs.CounterLabel = surfaceText(counter, Enum.NormalId.Back, "", { TextColor = COLORS.Edge, Glow = true })
+
+	-- Advertisements on the back wall.
+	refs.Posters = {}
+	local posters = {
+		{ X = -40, Text = "مشروب سبيد\nطاقة لآخر الليل", Color = Color3.fromRGB(230, 120, 30) },
+		{ X = -20, Text = "شقق النور\nقسّط على 10 سنين", Color = Color3.fromRGB(40, 90, 170) },
+		{ X = 20, Text = "تطبيق مشوار\nمشوارك علينا", Color = Color3.fromRGB(40, 140, 90) },
+		{ X = 40, Text = "متحف المترو\nافتتاح قريبًا", Color = Color3.fromRGB(110, 60, 150) },
+	}
+	for _, info in posters do
+		local poster = block(station, "Poster", Vector3.new(5, 7, 0.2), at(info.X, 7.5, -9.9), info.Color)
+		table.insert(refs.Posters, surfaceText(poster, Enum.NormalId.Back, info.Text, { Background = info.Color }))
+	end
+
+	-- Passengers. The game never says who they are.
+	refs.Passengers = {
+		Mannequin.create("Passenger", "Sit", at(-30, 3, -8.1) * CFrame.Angles(0, math.pi, 0), Color3.fromRGB(40, 55, 90)),
+		Mannequin.create("Passenger", "Sit", at(30, 3, -8.1) * CFrame.Angles(0, math.pi, 0), Color3.fromRGB(110, 75, 50)),
+		Mannequin.create("Passenger", "Stand", at(-5, 3, -3) * CFrame.Angles(0, math.pi, 0), Color3.fromRGB(95, 95, 100)),
+		Mannequin.create("Passenger", "Sit", at(-10, 2.9, 17.4), Color3.fromRGB(120, 40, 45)),
+	}
+	for _, passenger in refs.Passengers do
+		passenger.Parent = station
+	end
+
+	-- Hints at the twist. Nobody gets them the first time.
+	local newspaper = block(station, "Newspaper", Vector3.new(2, 0.05, 1.4), at(-10.8, 3.03, -8.2), Color3.fromRGB(235, 232, 220))
+	refs.NewspaperLabel = surfaceText(newspaper, Enum.NormalId.Top, "جريدة المترو\n" .. tomorrowText(), {
+		Background = Color3.fromRGB(235, 232, 220),
+		TextColor = COLORS.Dark,
+		PixelsPerStud = 80,
+	})
+
+	local flowers = Instance.new("Model")
+	flowers.Name = "Flowers"
+	for i, color in { Color3.fromRGB(200, 30, 40), Color3.fromRGB(245, 245, 240), Color3.fromRGB(200, 30, 40) } do
+		local offset = (i - 2) * 0.35
+		local base = at(1.8 + offset, 1.1, 2.6) * CFrame.Angles(0, math.rad(20 * (i - 2)), 0)
+		block(flowers, "Stem", Vector3.new(0.12, 0.12, 1.6), base, Color3.fromRGB(50, 110, 50))
+		local bloom = block(flowers, "Bloom", Vector3.new(0.45, 0.45, 0.45), base * CFrame.new(0, 0.1, -0.85), color)
+		bloom.Shape = Enum.PartType.Ball
+	end
+	flowers.Parent = station
+
+	local phone = block(station, "Phone", Vector3.new(0.7, 0.06, 1.2), at(34, 1.03, 4) * CFrame.Angles(0, math.rad(25), 0), COLORS.Dark)
+	refs.PhoneLabel = surfaceText(phone, Enum.NormalId.Top, "12 مكالمة فايتة", {
+		Background = Color3.fromRGB(10, 10, 14),
+		TextColor = Color3.fromRGB(230, 230, 235),
+		Glow = true,
+		PixelsPerStud = 90,
+	})
+	local glow = Instance.new("PointLight")
+	glow.Range = 4
+	glow.Brightness = 0.6
+	glow.Color = Color3.fromRGB(200, 220, 255)
+	glow.Parent = phone
+
+	refs.Station = station
+end
+
+-- Builds the map into Workspace.EndlessSubway and returns references the game loop and anomalies use.
+function MapBuilder.build()
+	clearDefaultPlace()
+
+	local existing = Workspace:FindFirstChild("EndlessSubway")
+	if existing then
+		existing:Destroy()
+	end
+
+	local map = Instance.new("Folder")
+	map.Name = "EndlessSubway"
+
+	local refs: any = { Map = map, Origin = ORIGIN }
+
+	buildShell(map)
+	refs.Doors = {
+		Continue = buildExitDoor(map, "Continue"),
+		Back = buildExitDoor(map, "Back"),
+	}
+	refs.Car, refs.DoorPanels, refs.StandPoints = buildCar(map)
+	buildStation(map, refs)
+
+	map.Parent = Workspace
+	return refs
+end
+
+-- Converts map-local coordinates (see the layout at the top) to a world CFrame.
+function MapBuilder.at(x: number, y: number, z: number): CFrame
+	return at(x, y, z)
+end
+
+return MapBuilder
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="23">
+        <Properties>
+          <string name="Name">VoteManager</string>
+          <string name="Source"><![CDATA[-- Majority vote by standing in front of a door. Each player votes with their body: whoever is
+-- inside a door's zone votes for it, and stepping out takes the vote back.
+--
+-- The vote locks in when every player is at a door, there is a clear majority, and nobody moves
+-- for Config.VoteConfirmSeconds. A tie keeps everyone arguing until the timeout, then a coin flip.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Config = require(ReplicatedStorage.Shared.Config)
+
+local POLL_SECONDS = 0.2
+
+export type Choice = "Continue" | "Back"
+
+local VoteManager = {}
+
+local function isInside(zone: BasePart, position: Vector3): boolean
+	local relative = zone.CFrame:PointToObjectSpace(position)
+	local half = zone.Size / 2
+	return math.abs(relative.X) <= half.X and math.abs(relative.Z) <= half.Z and relative.Y > -2 and relative.Y < 10
+end
+
+local function rootOf(player: Player): BasePart?
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if not humanoid or humanoid.Health <= 0 then
+		return nil
+	end
+	local root = character:FindFirstChild("HumanoidRootPart")
+	return if root and root:IsA("BasePart") then root else nil
+end
+
+local function count(doors)
+	local continueVotes, backVotes, voters = 0, 0, 0
+	for _, player in Players:GetPlayers() do
+		local root = rootOf(player)
+		if root then
+			voters += 1
+			if isInside(doors.Continue.Zone, root.Position) then
+				continueVotes += 1
+			elseif isInside(doors.Back.Zone, root.Position) then
+				backVotes += 1
+			end
+		end
+	end
+	return continueVotes, backVotes, voters
+end
+
+-- Yields until the players decide. Returns nil if everyone left the server.
+function VoteManager.collect(doors, net: Folder, random: Random): (Choice?, boolean)
+	local firstVoteAt: number? = nil
+	local leader: Choice? = nil
+	local leaderSince = 0
+
+	local function publish(continueVotes: number, backVotes: number, voters: number, countdown: number, tie: boolean)
+		net:SetAttribute("VotesContinue", continueVotes)
+		net:SetAttribute("VotesBack", backVotes)
+		net:SetAttribute("Voters", voters)
+		net:SetAttribute("VoteCountdown", countdown)
+		net:SetAttribute("VoteTie", tie)
+	end
+
+	while true do
+		if #Players:GetPlayers() == 0 then
+			publish(0, 0, 0, -1, false)
+			return nil, false
+		end
+
+		local now = os.clock()
+		local continueVotes, backVotes, voters = count(doors)
+		local voted = continueVotes + backVotes
+		local everyone = voters > 0 and voted == voters
+		local tie = everyone and continueVotes == backVotes
+
+		if voted > 0 then
+			firstVoteAt = firstVoteAt or now
+		else
+			firstVoteAt = nil
+		end
+
+		local current: Choice? = nil
+		if everyone and not tie then
+			current = if continueVotes > backVotes then "Continue" else "Back"
+		end
+		if current ~= leader then
+			leader = current
+			leaderSince = now
+		end
+
+		local countdown = -1
+		if leader then
+			countdown = Config.VoteConfirmSeconds - (now - leaderSince)
+			if countdown <= 0 then
+				publish(continueVotes, backVotes, voters, -1, false)
+				return leader, false
+			end
+		end
+
+		if firstVoteAt and now - firstVoteAt >= Config.VoteTimeoutSeconds then
+			publish(continueVotes, backVotes, voters, -1, false)
+			if continueVotes == backVotes then
+				return if random:NextNumber() < 0.5 then "Continue" else "Back", true
+			end
+			return if continueVotes > backVotes then "Continue" else "Back", false
+		end
+
+		publish(continueVotes, backVotes, voters, if countdown >= 0 then math.ceil(countdown) else -1, tie)
+		task.wait(POLL_SECONDS)
+	end
+end
+
+return VoteManager
+]]></string>
+        </Properties>
+      </Item>
+    </Item>
+  </Item>
+  <Item class="StarterPlayer" referent="24">
+    <Properties>
+      <string name="Name">StarterPlayer</string>
+    </Properties>
+    <Item class="StarterPlayerScripts" referent="25">
+      <Properties>
+        <string name="Name">StarterPlayerScripts</string>
+      </Properties>
+      <Item class="Folder" referent="26">
+        <Properties>
+          <string name="Name">Client</string>
+        </Properties>
+        <Item class="LocalScript" referent="27">
+          <Properties>
+            <string name="Name">HUD</string>
+            <string name="Source"><![CDATA[-- Player HUD: level and station counter, the rule, the live door vote, messages, and the
+-- black screen between stations. All game state comes from attributes on the Net folder.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+
+local Net = require(ReplicatedStorage.Shared.Net)
+
+local player = Players.LocalPlayer
+local net = Net.folder()
+local event = Net.event()
+
+local YELLOW = Color3.fromRGB(245, 197, 24)
+local GREEN = Color3.fromRGB(70, 200, 120)
+local RED = Color3.fromRGB(230, 85, 75)
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "EndlessSubwayHUD"
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+local function label(name: string, props: { [string]: any }): TextLabel
+	local text = Instance.new("TextLabel")
+	text.Name = name
+	text.BackgroundTransparency = 1
+	text.Font = Enum.Font.GothamBold
+	text.TextColor3 = Color3.new(1, 1, 1)
+	text.TextScaled = true
+	for key, value in props do
+		(text :: any)[key] = value
+	end
+	text.Parent = gui
+	return text
+end
+
+-- Top-right: level and counter (Arabic reads from the right).
+local levelLabel = label("Level", {
+	AnchorPoint = Vector2.new(1, 0),
+	Position = UDim2.new(1, -20, 0, 50),
+	Size = UDim2.fromOffset(320, 28),
+	TextXAlignment = Enum.TextXAlignment.Right,
+	TextColor3 = YELLOW,
+})
+local stationLabel = label("Station", {
+	AnchorPoint = Vector2.new(1, 0),
+	Position = UDim2.new(1, -20, 0, 80),
+	Size = UDim2.fromOffset(320, 40),
+	TextXAlignment = Enum.TextXAlignment.Right,
+})
+label("Rule", {
+	AnchorPoint = Vector2.new(1, 0),
+	Position = UDim2.new(1, -20, 0, 124),
+	Size = UDim2.fromOffset(420, 22),
+	TextXAlignment = Enum.TextXAlignment.Right,
+	TextColor3 = Color3.fromRGB(200, 200, 205),
+	Text = "المحطة طبيعية ← كمّل.  فيها حاجة غلط ← ارجع.",
+})
+
+-- Bottom: the live vote.
+local votePanel = Instance.new("Frame")
+votePanel.Name = "Vote"
+votePanel.AnchorPoint = Vector2.new(0.5, 1)
+votePanel.Position = UDim2.new(0.5, 0, 1, -24)
+votePanel.Size = UDim2.fromOffset(420, 70)
+votePanel.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+votePanel.BackgroundTransparency = 0.25
+votePanel.Visible = false
+votePanel.Parent = gui
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 10)
+corner.Parent = votePanel
+
+local function panelLabel(name: string, position: UDim2, size: UDim2, color: Color3): TextLabel
+	local text = label(name, { Position = position, Size = size, TextColor3 = color })
+	text.Parent = votePanel
+	return text
+end
+
+local continueLabel = panelLabel("Continue", UDim2.fromScale(0.52, 0.1), UDim2.fromScale(0.44, 0.45), GREEN)
+local backLabel = panelLabel("Back", UDim2.fromScale(0.04, 0.1), UDim2.fromScale(0.44, 0.45), RED)
+local statusLabel = panelLabel("Status", UDim2.fromScale(0.04, 0.58), UDim2.fromScale(0.92, 0.34), Color3.fromRGB(210, 210, 215))
+
+-- Center: messages.
+local messageLabel = label("Message", {
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.fromScale(0.5, 0.42),
+	Size = UDim2.fromScale(0.7, 0.08),
+	TextTransparency = 1,
+	TextStrokeTransparency = 1,
+	ZIndex = 3,
+})
+
+-- Full-screen black for the ride between stations. Starts dark unless we joined mid-station.
+local blackout = Instance.new("Frame")
+blackout.Name = "Blackout"
+blackout.Size = UDim2.fromScale(1, 1)
+blackout.BackgroundColor3 = Color3.new(0, 0, 0)
+blackout.BorderSizePixel = 0
+blackout.BackgroundTransparency = if net:GetAttribute("Phase") == "Station" then 1 else 0
+blackout.ZIndex = 2
+blackout.Parent = gui
+
+gui.Parent = player:WaitForChild("PlayerGui")
+
+local function refreshState()
+	local level = net:GetAttribute("Level") or 1
+	local levelName = net:GetAttribute("LevelName") or ""
+	local station = net:GetAttribute("Station") or 0
+	local total = net:GetAttribute("StationsPerLevel") or 5
+	levelLabel.Text = string.format("Level %d · %s", level, levelName)
+	stationLabel.Text = string.format("المحطة %d / %d", station, total)
+end
+
+local function refreshVote()
+	votePanel.Visible = net:GetAttribute("Phase") == "Station"
+
+	local continueVotes = net:GetAttribute("VotesContinue") or 0
+	local backVotes = net:GetAttribute("VotesBack") or 0
+	local voters = net:GetAttribute("Voters") or 0
+	local countdown = net:GetAttribute("VoteCountdown") or -1
+
+	continueLabel.Text = "كمّل: " .. continueVotes
+	backLabel.Text = "ارجع: " .. backVotes
+
+	if net:GetAttribute("VoteTie") then
+		statusLabel.Text = "تعادل! لازم أغلبية"
+	elseif countdown >= 0 then
+		statusLabel.Text = "القرار خلال " .. countdown .. "…"
+	elseif continueVotes + backVotes == 0 then
+		statusLabel.Text = "اقف قدام الباب اللي تختاره"
+	else
+		statusLabel.Text = string.format("مستنيين الباقيين (%d / %d)", continueVotes + backVotes, voters)
+	end
+end
+
+for _, name in { "Level", "LevelName", "Station", "StationsPerLevel" } do
+	net:GetAttributeChangedSignal(name):Connect(refreshState)
+end
+for _, name in { "Phase", "VotesContinue", "VotesBack", "Voters", "VoteCountdown", "VoteTie" } do
+	net:GetAttributeChangedSignal(name):Connect(refreshVote)
+end
+refreshState()
+refreshVote()
+
+local messageToken = 0
+local function showMessage(text: string, duration: number)
+	messageToken += 1
+	local token = messageToken
+	messageLabel.Text = text
+	TweenService:Create(messageLabel, TweenInfo.new(0.3), { TextTransparency = 0, TextStrokeTransparency = 0.5 }):Play()
+	task.delay(duration, function()
+		if token == messageToken then
+			TweenService:Create(messageLabel, TweenInfo.new(0.6), { TextTransparency = 1, TextStrokeTransparency = 1 }):Play()
+		end
+	end)
+end
+
+event.OnClientEvent:Connect(function(payload)
+	if payload.Kind == "Fade" then
+		local goal = if payload.Visible then 0 else 1
+		TweenService:Create(blackout, TweenInfo.new(payload.Duration or 1), { BackgroundTransparency = goal }):Play()
+	elseif payload.Kind == "Message" then
+		showMessage(payload.Text, payload.Duration or 3)
+	end
+end)
+]]></string>
+          </Properties>
+        </Item>
+      </Item>
+    </Item>
+  </Item>
+</roblox>
