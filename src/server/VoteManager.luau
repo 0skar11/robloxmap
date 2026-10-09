@@ -17,6 +17,10 @@ type Publish = (continueVotes: number, backVotes: number, voters: number, countd
 local VoteManager = {}
 
 local function isInside(zone: BasePart, position: Vector3): boolean
+	-- A removed door (the GO BACK door on level 1) takes no votes.
+	if not zone:IsDescendantOf(workspace) then
+		return false
+	end
 	local relative = zone.CFrame:PointToObjectSpace(position)
 	local half = zone.Size / 2
 	return math.abs(relative.X) <= half.X and math.abs(relative.Z) <= half.Z and relative.Y > -2 and relative.Y < 10

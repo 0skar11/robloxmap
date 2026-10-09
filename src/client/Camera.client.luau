@@ -1,6 +1,9 @@
--- When you die mid-game you stay dead and watch your living teammates, in third person, until
--- the whole group is dead (then everyone respawns at level 1). Tap the arrows or press Q / E to
--- switch who you watch.
+-- Camera for every situation:
+--   Lobby      third person, normal mouse
+--   In game    first person, no cursor in the middle of the screen
+--   Dead       third person, watching your living teammates until the whole group is dead
+--              (then everyone respawns at level 1). Arrows or Q / E switch who you watch.
+-- A screen that needs clicks (the tutorial) sets the local "UiOpen" attribute to show the cursor.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -75,14 +78,45 @@ local function teammates(): { Player }
 	return list
 end
 
+local THIRD_PERSON_ZOOM = 12
+
+local thirdPerson = nil
+
+local function setThirdPerson(enabled: boolean)
+	if thirdPerson == enabled then
+		return
+	end
+	thirdPerson = enabled
+	if enabled then
+		player.CameraMode = Enum.CameraMode.Classic
+		player.CameraMaxZoomDistance = 25
+		-- Coming out of first person the camera sits inside the head; push it back out.
+		player.CameraMinZoomDistance = THIRD_PERSON_ZOOM
+		task.delay(0.1, function()
+			if thirdPerson then
+				player.CameraMinZoomDistance = 2
+			end
+		end)
+	else
+		player.CameraMinZoomDistance = 0.5
+		player.CameraMode = Enum.CameraMode.LockFirstPerson
+	end
+end
+
+local function updateCursor()
+	-- In first person the mouse is locked; hide its icon unless a screen needs clicking.
+	UserInputService.MouseIconEnabled = thirdPerson == true or player:GetAttribute("UiOpen") == true
+end
+
 local function refresh()
 	local camera = Workspace.CurrentCamera
-	local dead = player:GetAttribute("Dead") == true and player:GetAttribute("Phase") ~= "Lobby"
+	local inLobby = player:GetAttribute("Phase") == "Lobby" or player:GetAttribute("Phase") == nil
+	local dead = player:GetAttribute("Dead") == true and not inLobby
 	gui.Enabled = dead
 
 	if not dead then
-		-- Back to normal first person on your own character.
-		player.CameraMode = Enum.CameraMode.LockFirstPerson
+		setThirdPerson(inLobby)
+		updateCursor()
 		local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
 		if humanoid then
 			camera.CameraSubject = humanoid
@@ -90,8 +124,8 @@ local function refresh()
 		return
 	end
 
-	player.CameraMode = Enum.CameraMode.Classic
-	player.CameraMaxZoomDistance = 20
+	setThirdPerson(true)
+	updateCursor()
 	local language = player:GetAttribute("Language")
 	hint.Text = Strings.get(language, "SpectateHint")
 
@@ -131,11 +165,14 @@ UserInputService.InputBegan:Connect(function(input, processed)
 end)
 
 player:GetAttributeChangedSignal("Dead"):Connect(refresh)
+player:GetAttributeChangedSignal("UiOpen"):Connect(updateCursor)
 player:GetAttributeChangedSignal("Phase"):Connect(refresh)
 player.CharacterAdded:Connect(function()
 	task.wait()
 	refresh()
 end)
+
+refresh()
 
 -- Re-check now and then: the teammate you watch may die too, or the stations may change.
 while true do

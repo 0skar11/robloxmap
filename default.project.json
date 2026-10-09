@@ -19,7 +19,7 @@
         }
       },
       "$properties": {
-        "CameraMode": "LockFirstPerson",
+        "CameraMode": "Classic",
         "CharacterWalkSpeed": 16,
         "EnableMouseLockOption": false
       }

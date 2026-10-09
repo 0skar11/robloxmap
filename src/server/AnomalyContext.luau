@@ -8,6 +8,7 @@
 --   ctx:Set(instance, property, value)       change a property (Parent = nil hides something)
 --   ctx:SetAttribute(instance, name, value)  change an attribute
 --   ctx:Pivot(model, cframe)                 move a model
+--   ctx:Hide(instance)                       make something invisible and walk-through
 --   ctx:Add(instance, parent?)               add something new; destroyed on restore
 --   ctx:Connect(signal, callback)            disconnected on restore
 --   ctx:Spawn(callback)                      a thread that is cancelled on restore
@@ -63,6 +64,21 @@ function AnomalyContext.Pivot(self: Context, model: PVInstance, cframe: CFrame)
 		model:PivotTo(original)
 	end)
 	model:PivotTo(cframe)
+end
+
+-- Hides a model without removing it, so a seated avatar keeps its pose when it comes back.
+function AnomalyContext.Hide(self: Context, instance: Instance)
+	for _, descendant in instance:GetDescendants() do
+		if descendant:IsA("BasePart") then
+			self:Set(descendant, "Transparency", 1)
+			self:Set(descendant, "CanCollide", false)
+			self:Set(descendant, "CastShadow", false)
+		elseif descendant:IsA("Decal") then
+			self:Set(descendant, "Transparency", 1)
+		elseif descendant:IsA("SurfaceGui") or descendant:IsA("Light") then
+			self:Set(descendant, "Enabled", false)
+		end
+	end
 end
 
 function AnomalyContext.Add(self: Context, instance: Instance, parent: Instance?): Instance

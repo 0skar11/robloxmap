@@ -14,6 +14,10 @@ Config.HorrorStartsAtLevel = 6
 -- (once in the bright station, once in the dark one).
 Config.AlwaysNormalLevels = { 1, 6 }
 
+-- The GO BACK door only exists from this level on. Level 1 is always safe, so there is
+-- nothing to go back from.
+Config.BackDoorFromLevel = 2
+
 -- Chance that any other level carries an anomaly.
 Config.AnomalyChance = 0.6
 

@@ -55,6 +55,11 @@ local function applyMood(refs, mood: "Calm" | "Horror")
 	end
 end
 
+-- Removes the GO BACK door (sign, frame and vote zone) on levels where it does not exist yet.
+local function setBackDoor(refs, available: boolean)
+	refs.Doors.Back.Model.Parent = if available then refs.Map else nil
+end
+
 -- Ticks the station clock from 23:57:00 every time the train stops, unless an anomaly froze it.
 local function runClock(refs, stationStartedAt: () -> number)
 	task.spawn(function()
@@ -101,6 +106,7 @@ function GameLoop.run(session)
 		setAll("Level", level)
 		setAll("TotalLevels", Config.TotalLevels)
 		setAll("Checkpoint", checkpoint)
+		setAll("BackDoor", level >= Config.BackDoorFromLevel)
 		refs.CounterLabel.Text = text("Counter", level, Config.TotalLevels)
 	end
 
@@ -190,6 +196,7 @@ function GameLoop.run(session)
 			print("[EndlessSubway] session", session.Slot, "level", level, "anomaly:", anomaly and anomaly.Name or "none")
 		end
 
+		setBackDoor(refs, level >= Config.BackDoorFromLevel)
 		setDoors(refs, false)
 		boardTrain()
 		stationStartedAt = os.clock()
