@@ -86,8 +86,14 @@ function GameLoop.run(session)
 	local anomalies = AnomalyRegistry.load()
 	local random = Random.new()
 
-	local level = 1
+	local level = math.clamp(Config.StartLevel or 1, 1, Config.TotalLevels)
+	-- Starting later (for testing) counts the checkpoints already passed.
 	local checkpoint = 0
+	for _, passed in Config.Checkpoints do
+		if passed < level then
+			checkpoint = math.max(checkpoint, passed)
+		end
+	end
 	local mood = moodOf(level)
 	local lastAnomaly = nil
 	local stationStartedAt = os.clock()

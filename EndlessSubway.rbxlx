@@ -71,6 +71,10 @@ Config.BlackoutSeconds = 2
 -- Prints the active anomaly to the server output. Handy while testing, spoils the game otherwise.
 Config.Debug = false
 
+-- Testing: the level a new game starts at. Set it to 6 to jump straight into the dark half
+-- (checkpoints before it count as reached). Keep it at 1 for the real game.
+Config.StartLevel = 1
+
 -- Lobby: groups of 1 to 10 players gather on a gate, then go play together.
 Config.MinPartySize = 1
 Config.MaxPartySize = 10
@@ -1148,8 +1152,14 @@ function GameLoop.run(session)
 	local anomalies = AnomalyRegistry.load()
 	local random = Random.new()
 
-	local level = 1
+	local level = math.clamp(Config.StartLevel or 1, 1, Config.TotalLevels)
+	-- Starting later (for testing) counts the checkpoints already passed.
 	local checkpoint = 0
+	for _, passed in Config.Checkpoints do
+		if passed < level then
+			checkpoint = math.max(checkpoint, passed)
+		end
+	end
 	local mood = moodOf(level)
 	local lastAnomaly = nil
 	local stationStartedAt = os.clock()
@@ -2807,6 +2817,8 @@ local function loadAvatar(container: Model, pose: "Stand" | "Sit", pivot: CFrame
 	local played = pcall(function()
 		local track = animator:LoadAnimation(animation)
 		track.Looped = true
+		-- Above every other pose, so nothing makes a seated passenger look like they are standing.
+		track.Priority = Enum.AnimationPriority.Action
 		track:Play(0)
 	end)
 	if not played then
@@ -3587,9 +3599,9 @@ function Walker.start(refs, getAlive: () -> { Player }, onScare: (Player) -> ())
 	local running = true
 	local tracks: { AnimationTrack } = {}
 
-	local function play(id: string, speed: number)
+	local function load(id: string, priority: Enum.AnimationPriority): AnimationTrack?
 		if not humanoid then
-			return
+			return nil
 		end
 		local animator = humanoid:FindFirstChildOfClass("Animator") or Instance.new("Animator")
 		animator.Parent = humanoid
@@ -3598,20 +3610,32 @@ function Walker.start(refs, getAlive: () -> { Player }, onScare: (Player) -> ())
 		local ok, track = pcall(function()
 			return animator:LoadAnimation(animation)
 		end)
-		if ok and track then
-			track.Looped = true
+		if not ok or not track then
+			return nil
+		end
+		track.Looped = true
+		track.Priority = priority
+		return track
+	end
+
+	local function play(id: string, speed: number)
+		local track = load(id, Enum.AnimationPriority.Movement)
+		if track then
 			track:Play(0.2)
 			track:AdjustSpeed(speed)
 			table.insert(tracks, track)
 		end
 	end
 
-	local function stopTracks()
+	local function stopTracks(fade: number?)
 		for _, track in tracks do
-			track:Stop(0.2)
+			track:Stop(fade or 0.2)
 		end
 		table.clear(tracks)
 	end
+
+	-- Loaded up front so it is ready the moment he sits, and above every other pose.
+	local sitTrack = load(SIT_ANIMATION, Enum.AnimationPriority.Action)
 
 	-- One frame's step toward a point on the floor. Returns the distance left.
 	local function stepToward(target: Vector3, speed: number, dt: number): number
@@ -3639,10 +3663,19 @@ function Walker.start(refs, getAlive: () -> { Player }, onScare: (Player) -> ())
 
 	local function sit()
 		local seat = refs.WalkerSeat
-		if root and humanoid and seat then
-			root.Anchored = false
-			seat:Sit(humanoid)
-			play(SIT_ANIMATION, 1)
+		if not (root and humanoid and seat) then
+			return
+		end
+		-- Stop walking at once (a fading walk would keep the legs moving), line him up right above
+		-- the seat facing the same way, and only then let the seat take him.
+		stopTracks(0)
+		root.CFrame = seat.CFrame * CFrame.new(0, humanoid.HipHeight + root.Size.Y / 2 + 0.2, 0)
+		root.AssemblyLinearVelocity = Vector3.zero
+		root.Anchored = false
+		seat:Sit(humanoid)
+		if sitTrack then
+			sitTrack:Play(0)
+			table.insert(tracks, sitTrack)
 		end
 	end
 
@@ -3675,7 +3708,6 @@ function Walker.start(refs, getAlive: () -> { Player }, onScare: (Player) -> ())
 				return
 			end
 		end
-		stopTracks()
 		sit()
 	end)
 
@@ -3684,7 +3716,7 @@ function Walker.start(refs, getAlive: () -> { Player }, onScare: (Player) -> ())
 		if coroutine.status(thread) ~= "dead" then
 			task.cancel(thread)
 		end
-		stopTracks()
+		stopTracks(0)
 		-- Get up from the seat and go back to his spot.
 		local weld = refs.WalkerSeat and refs.WalkerSeat:FindFirstChild("SeatWeld")
 		if weld then
