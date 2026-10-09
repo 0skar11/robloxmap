@@ -18,6 +18,27 @@
           "$path": "src/client"
         }
       }
+    },
+    "Lighting": {
+      "$className": "Lighting",
+      "$properties": {
+        "Technology": "Future",
+        "ClockTime": 0,
+        "Brightness": 0,
+        "GlobalShadows": true,
+        "Ambient": [
+          0.055,
+          0.055,
+          0.07
+        ],
+        "OutdoorAmbient": [
+          0,
+          0,
+          0
+        ],
+        "EnvironmentDiffuseScale": 0,
+        "EnvironmentSpecularScale": 0.4
+      }
     }
   }
 }

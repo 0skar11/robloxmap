@@ -24,25 +24,36 @@ Config.BlackoutSeconds = 2
 -- Prints the active anomaly to the server output. Handy while testing, spoils the game otherwise.
 Config.Debug = false
 
--- Per-level mood. Levels 2 and 3 only change the lighting for now (build step 3 adds their own scenes).
+-- Lobby: groups of 1 to 10 players gather on a pad, then get their own copy of the station.
+Config.MinPartySize = 1
+Config.MaxPartySize = 10
+Config.DefaultPartySize = 4
+Config.LobbyPads = 6
+Config.LobbyCountdownSeconds = 5
+
+-- Each group's station is built this far from the previous one along X.
+Config.StationSpacing = 1000
+
+-- Passengers wear random real Roblox avatars. Set false to use the plain block mannequins.
+Config.RandomAvatarNpcs = true
+
+-- Per-level mood of the station lights. Levels 2 and 3 only change the lights for now
+-- (build step 3 adds their own scenes).
 Config.Levels = {
 	{
 		Name = "The Last Train",
-		Ambient = Color3.fromRGB(60, 60, 70),
-		LightColor = Color3.fromRGB(255, 241, 214),
-		LightBrightness = 1.4,
-	},
-	{
-		Name = "Fractured",
-		Ambient = Color3.fromRGB(45, 40, 40),
-		LightColor = Color3.fromRGB(255, 205, 170),
+		LightColor = Color3.fromRGB(255, 226, 180),
 		LightBrightness = 0.9,
 	},
 	{
-		Name = "Acceptance",
-		Ambient = Color3.fromRGB(30, 34, 45),
-		LightColor = Color3.fromRGB(190, 210, 255),
+		Name = "Fractured",
+		LightColor = Color3.fromRGB(255, 180, 140),
 		LightBrightness = 0.6,
+	},
+	{
+		Name = "Acceptance",
+		LightColor = Color3.fromRGB(170, 195, 255),
+		LightBrightness = 0.4,
 	},
 }
 

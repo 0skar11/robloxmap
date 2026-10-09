@@ -4,7 +4,6 @@
 -- The vote locks in when every player is at a door, there is a clear majority, and nobody moves
 -- for Config.VoteConfirmSeconds. A tie keeps everyone arguing until the timeout, then a coin flip.
 
-local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
@@ -12,6 +11,7 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local POLL_SECONDS = 0.2
 
 export type Choice = "Continue" | "Back"
+type Publish = (continueVotes: number, backVotes: number, voters: number, countdown: number, tie: boolean) -> ()
 
 local VoteManager = {}
 
@@ -24,16 +24,16 @@ end
 local function rootOf(player: Player): BasePart?
 	local character = player.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-	if not humanoid or humanoid.Health <= 0 then
+	if not character or not humanoid or humanoid.Health <= 0 then
 		return nil
 	end
 	local root = character:FindFirstChild("HumanoidRootPart")
 	return if root and root:IsA("BasePart") then root else nil
 end
 
-local function count(doors)
+local function count(doors, members: { Player })
 	local continueVotes, backVotes, voters = 0, 0, 0
-	for _, player in Players:GetPlayers() do
+	for _, player in members do
 		local root = rootOf(player)
 		if root then
 			voters += 1
@@ -47,28 +47,21 @@ local function count(doors)
 	return continueVotes, backVotes, voters
 end
 
--- Yields until the players decide. Returns nil if everyone left the server.
-function VoteManager.collect(doors, net: Folder, random: Random): (Choice?, boolean)
+-- Yields until the group decides. Returns nil if the whole group left. The second value is true
+-- when a tie was settled by coin flip.
+function VoteManager.collect(doors, getMembers: () -> { Player }, publish: Publish, random: Random): (Choice?, boolean)
 	local firstVoteAt: number? = nil
 	local leader: Choice? = nil
 	local leaderSince = 0
 
-	local function publish(continueVotes: number, backVotes: number, voters: number, countdown: number, tie: boolean)
-		net:SetAttribute("VotesContinue", continueVotes)
-		net:SetAttribute("VotesBack", backVotes)
-		net:SetAttribute("Voters", voters)
-		net:SetAttribute("VoteCountdown", countdown)
-		net:SetAttribute("VoteTie", tie)
-	end
-
 	while true do
-		if #Players:GetPlayers() == 0 then
-			publish(0, 0, 0, -1, false)
+		local members = getMembers()
+		if #members == 0 then
 			return nil, false
 		end
 
 		local now = os.clock()
-		local continueVotes, backVotes, voters = count(doors)
+		local continueVotes, backVotes, voters = count(doors, members)
 		local voted = continueVotes + backVotes
 		local everyone = voters > 0 and voted == voters
 		local tie = everyone and continueVotes == backVotes

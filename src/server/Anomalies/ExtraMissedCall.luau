@@ -2,7 +2,7 @@
 return {
 	Name = "ExtraMissedCall",
 	Apply = function(ctx)
-		ctx:Set(ctx.Refs.PhoneLabel, "Text", "13 مكالمة فايتة")
+		ctx:Set(ctx.Refs.PhoneLabel, "Text", ctx:Text("MissedCalls", 13))
 	end,
 	Reset = function(ctx)
 		ctx:Restore()

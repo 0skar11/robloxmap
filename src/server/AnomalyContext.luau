@@ -2,7 +2,7 @@
 -- ctx:Restore() puts the station back exactly as it was, whatever the anomaly did.
 --
 --   ctx.Refs        everything MapBuilder.build() returned (lights, posters, passengers, ...)
---   ctx.Players     players in the server when the station started
+--   ctx.Players     the group's players when the station started
 --   ctx.Random      a Random object, so a station can be replayed from its seed
 --
 --   ctx:Set(instance, property, value)       change a property (Parent = nil hides something)
@@ -12,6 +12,11 @@
 --   ctx:Connect(signal, callback)            disconnected on restore
 --   ctx:Spawn(callback)                      a thread that is cancelled on restore
 --   ctx:Pick(list)                           random element of a list
+--   ctx:Text(key, ...)                       text in the group's language (see Shared/Strings)
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Strings = require(ReplicatedStorage.Shared.Strings)
 
 local AnomalyContext = {}
 AnomalyContext.__index = AnomalyContext
@@ -88,6 +93,10 @@ end
 
 function AnomalyContext.Pick<T>(self: Context, list: { T }): T
 	return list[self.Random:NextInteger(1, #list)]
+end
+
+function AnomalyContext.Text(self: Context, key: string, ...: any): string
+	return Strings.get(self.Refs.Language, key, ...)
 end
 
 -- Undoes everything in reverse order, so stacked changes to one property unwind correctly.
